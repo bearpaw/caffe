@@ -321,16 +321,25 @@ layers {
   }
 }
 layers {
-  name: "loss1"
-  type: EUCLIDEAN_LOSS
+  name: "relu8"
+  type: RELU
   bottom: "fc8"
-  bottom: "label"
-  top: "loss1"
+  top: "relu8"
 }
+layers {
+  name: "drop8"
+  type: DROPOUT
+  bottom: "relu8"
+  top: "drop8"
+  dropout_param {
+    dropout_ratio: 0.6
+  }
+}
+
 layers {
   name: "fc9"
   type: CUSTOM_INNER_PRODUCT
-  bottom: "fc8"
+  bottom: "drop8"
   top: "fc9"
   blobs_lr: 1
   blobs_lr: 2
@@ -366,20 +375,12 @@ layers {
   }
 }
 layers {
-  name: "accuracy"
-  type: ACCURACY_REGRESSION
-  bottom: "fc8"
-  bottom: "label"
-  top: "accuracy"
-  include: { phase: TEST }
-}
-layers {
-  name: "loss2"
+  name: "loss1"
   type: CUSTOM_EU_LOSS
   bottom: "fc9"
   bottom: "label"
-  top: "loss2"
-  loss_weight: 2
+  top: "loss1"
+  loss_weight: 1
   custom_eu_loss_param {
     is_selected: true
     # pridict: neck, head top
@@ -388,4 +389,76 @@ layers {
     selected_point: 26
     selected_point: 27
   }
+}
+
+layers {
+  name: "fc8-head"
+  type: INNER_PRODUCT
+  bottom: "fc7"
+  top: "fc8-head"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 4
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "loss2"
+  type: CUSTOM_EU_LOSS
+  bottom: "fc8-head"
+  bottom: "label"
+  top: "loss2"
+  loss_weight: 1
+  custom_eu_loss_param {
+    is_selected: true
+    # pridict: neck, head top
+    selected_point: 12
+    selected_point: 13
+    selected_point: 26
+    selected_point: 27
+  }
+}
+layers {
+  name: "elw10"
+  type: ELTWISE
+  bottom: "fc9"
+  bottom: "fc8-head"
+  top: "elw10"
+  eltwise_param {
+    operation: SUM
+  }
+}
+layers {
+  name: "elw10-loss"
+  type: CUSTOM_EU_LOSS
+  bottom: "elw10"
+  bottom: "label"
+  top: "elw10-loss"
+  custom_eu_loss_param {
+    is_selected: true
+    # pridict: neck, head top
+    selected_point: 12
+    selected_point: 13
+    selected_point: 26
+    selected_point: 27
+  }
+}
+layers {
+  name: "accuracy"
+  type: ACCURACY_REGRESSION
+  bottom: "fc8"
+  bottom: "label"
+  top: "accuracy"
+  include: { phase: TEST }
 }

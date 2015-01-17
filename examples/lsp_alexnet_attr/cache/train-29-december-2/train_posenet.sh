@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 
-prefix=train-31-december
-postfix=attr-finetune-from-nov-12-lsp_elw
+prefix=train-29-december-2
+postfix=left-arm-finetune-from-nov-12-lsp_elw
 
 mkdir cache
 mkdir cache/$prefix

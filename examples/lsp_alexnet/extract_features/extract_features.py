@@ -10,10 +10,10 @@ import test
 
 top_k = 5;
 # extract parameters
-prototxt = "/home/wyang/github/caffe/examples/lsp_alexnet/caffenet-pose-lsp-test-multable-fc.prototxt"
+prototxt = "/home/wyang/github/caffe/examples/lsp_alexnet/caffenet-pose-lsp-train-val-multable-fc.prototxt"
 model_prefix = "/home/wyang/github/caffe/examples/lsp_alexnet/pose_caffenet_train_iter_"
-layer = "fc9"
-leveldb = "dec-22-2014"
+layer = "elw9"
+leveldb = "jan-06-2015"
 batchsize = 100
 batchnum = top_k*10
 dim = 4
@@ -21,7 +21,7 @@ out_dir = leveldb + "-mat/"
 subprocess.call(["mkdir", out_dir])
 
 # start iterations
-model_idx = range(14000, 20001, 1000)
+model_idx = range(10000, 12001, 1000)
 for idx in model_idx:
 	print "Processing {}".format(idx);
 	output = out_dir + "test_labels_" + layer + "_" + str(idx) +".mat"

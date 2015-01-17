@@ -4,7 +4,7 @@ test_interval: 500
 base_lr: 0.0005
 # The learning rate policy
 lr_policy: "step"
-gamma: 0.5
+gamma: 0.2
 stepsize: 5000
 display: 20
 max_iter: 200000

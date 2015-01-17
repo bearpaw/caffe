@@ -17,7 +17,7 @@ layers {
   top: "data"
   top: "label"
   hdf5_data_param {
-    source: "/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_test_full/lsp_test_full_mean.txt"
+    source: "/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_test_top5/lsp_test_mean.txt"
     batch_size: 128
   }
   include: { phase: TEST }
@@ -328,9 +328,24 @@ layers {
   top: "loss1"
 }
 layers {
+  name: "relu8"
+  type: RELU
+  bottom: "fc8"
+  top: "relu8"
+}
+layers {
+  name: "drop8"
+  type: DROPOUT
+  bottom: "relu8"
+  top: "drop8"
+  dropout_param {
+    dropout_ratio: 0.6
+  }
+}
+layers {
   name: "fc9"
   type: CUSTOM_INNER_PRODUCT
-  bottom: "fc8"
+  bottom: "drop8"
   top: "fc9"
   blobs_lr: 1
   blobs_lr: 2
@@ -366,20 +381,12 @@ layers {
   }
 }
 layers {
-  name: "accuracy"
-  type: ACCURACY_REGRESSION
-  bottom: "fc8"
-  bottom: "label"
-  top: "accuracy"
-  include: { phase: TEST }
-}
-layers {
   name: "loss2"
   type: CUSTOM_EU_LOSS
   bottom: "fc9"
   bottom: "label"
   top: "loss2"
-  loss_weight: 2
+  loss_weight: 1
   custom_eu_loss_param {
     is_selected: true
     # pridict: neck, head top
@@ -388,4 +395,12 @@ layers {
     selected_point: 26
     selected_point: 27
   }
+}
+layers {
+  name: "accuracy"
+  type: ACCURACY_REGRESSION
+  bottom: "fc8"
+  bottom: "label"
+  top: "accuracy"
+  include: { phase: TEST }
 }

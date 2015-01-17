@@ -345,8 +345,7 @@ layers {
     bias_filler {
       type: "constant"
       value: 0
-    }   
-    # only use hip, shoulder, neck, head top
+    }    
     fixed_point: 0    
     fixed_point: 1
     fixed_point: 4
@@ -382,7 +381,6 @@ layers {
   loss_weight: 2
   custom_eu_loss_param {
     is_selected: true
-    # pridict: neck, head top
     selected_point: 12
     selected_point: 13
     selected_point: 26

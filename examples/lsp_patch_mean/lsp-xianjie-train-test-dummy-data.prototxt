@@ -1,40 +1,46 @@
-name: "CaffeNet"
+name: "XianjieNet"
+#--------------------------------
+# Input Data
+#--------------------------------
 layers {
   name: "data"
-  type: HDF5_DATA
+  type: DUMMY_DATA
   top: "data"
   top: "label"
-  hdf5_data_param {
-    source: "/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_train_val_top10/lsp_train.txt"
-    batch_size: 128
-	shuffle: 1
+  dummy_data_param {
+    data_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    num: 10
+    num: 10
+    channels: 3
+    channels: 1
+    height: 28
+    height: 1
+    width: 28
+    width: 1
   }
   include: { phase: TRAIN }
 }
-layers {
-  name: "data"
-  type: HDF5_DATA
-  top: "data"
-  top: "label"
-  hdf5_data_param {
-    source: "/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_test_full/lsp_test_full_mean.txt"
-    batch_size: 128
-  }
-  include: { phase: TEST }
-}
+
+
+#--------------------------------
+# Conv Layers
+#--------------------------------
 layers {
   name: "conv1"
   type: CONVOLUTION
   bottom: "data"
   top: "conv1"
-  blobs_lr: 0
-  blobs_lr: 0
+  blobs_lr: 1
+  blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   convolution_param {
-    num_output: 96
-    kernel_size: 11
-    stride: 4
+    num_output: 32
+    kernel_size: 5
+    stride: 1
     weight_filler {
       type: "gaussian"
       std: 0.01
@@ -58,7 +64,7 @@ layers {
   top: "pool1"
   pooling_param {
     pool: MAX
-    kernel_size: 3
+    kernel_size: 2
     stride: 2
   }
 }
@@ -78,15 +84,13 @@ layers {
   type: CONVOLUTION
   bottom: "norm1"
   top: "conv2"
-  blobs_lr: 0
-  blobs_lr: 0
+  blobs_lr: 1
+  blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   convolution_param {
-    num_output: 256
-    pad: 2
-    kernel_size: 5
-    group: 2
+    num_output: 128
+    kernel_size: 3
     weight_filler {
       type: "gaussian"
       std: 0.01
@@ -130,12 +134,12 @@ layers {
   type: CONVOLUTION
   bottom: "norm2"
   top: "conv3"
-  blobs_lr: 0
-  blobs_lr: 0
+  blobs_lr: 1
+  blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   convolution_param {
-    num_output: 384
+    num_output: 256
     pad: 1
     kernel_size: 3
     weight_filler {
@@ -159,15 +163,14 @@ layers {
   type: CONVOLUTION
   bottom: "conv3"
   top: "conv4"
-  blobs_lr: 0
-  blobs_lr: 0
+  blobs_lr: 1
+  blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   convolution_param {
-    num_output: 384
+    num_output: 128
     pad: 1
     kernel_size: 3
-    group: 2
     weight_filler {
       type: "gaussian"
       std: 0.01
@@ -189,15 +192,14 @@ layers {
   type: CONVOLUTION
   bottom: "conv4"
   top: "conv5"
-  blobs_lr: 0
-  blobs_lr: 0
+  blobs_lr: 1
+  blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   convolution_param {
-    num_output: 256
+    num_output: 32
     pad: 1
     kernel_size: 3
-    group: 2
     weight_filler {
       type: "gaussian"
       std: 0.01
@@ -216,24 +218,12 @@ layers {
 }
 
 layers {
-  name: "pool5"
-  type: POOLING
-  bottom: "conv5"
-  top: "pool5"
-  pooling_param {
-    pool: MAX
-    kernel_size: 3
-    stride: 2
-  }
-}
-
-layers {
   name: "fc6"
   type: INNER_PRODUCT
-  bottom: "pool5"
+  bottom: "conv5"
   top: "fc6"
-  blobs_lr: 0
-  blobs_lr: 0
+  blobs_lr: 1
+  blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
@@ -260,7 +250,7 @@ layers {
   bottom: "fc6"
   top: "fc6"
   dropout_param {
-    dropout_ratio: 0.6
+    dropout_ratio: 0.5
   }
 }
 layers {
@@ -268,8 +258,8 @@ layers {
   type: INNER_PRODUCT
   bottom: "fc6"
   top: "fc7"
-  blobs_lr: 0
-  blobs_lr: 0
+  blobs_lr: 1
+  blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
@@ -296,16 +286,16 @@ layers {
   bottom: "fc7"
   top: "fc7"
   dropout_param {
-    dropout_ratio: 0.6
+    dropout_ratio: 0.5
   }
 }
 layers {
-  name: "fc8_pose"
+  name: "fc8"
   type: INNER_PRODUCT
   bottom: "fc7"
   top: "fc8"
-  blobs_lr: 0
-  blobs_lr: 0
+  blobs_lr: 1
+  blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
@@ -321,71 +311,8 @@ layers {
   }
 }
 layers {
-  name: "loss1"
-  type: EUCLIDEAN_LOSS
+  name: "loss"
+  type: SOFTMAX_LOSS
   bottom: "fc8"
   bottom: "label"
-  top: "loss1"
-}
-layers {
-  name: "fc9"
-  type: CUSTOM_INNER_PRODUCT
-  bottom: "fc8"
-  top: "fc9"
-  blobs_lr: 1
-  blobs_lr: 2
-  weight_decay: 1
-  weight_decay: 0
-  custom_inner_product_param {
-    num_output: 4
-    weight_filler {
-      type: "gaussian"
-      std: 0.01
-    }
-    bias_filler {
-      type: "constant"
-      value: 0
-    }   
-    # only use hip, shoulder, neck, head top
-    fixed_point: 0    
-    fixed_point: 1
-    fixed_point: 4
-    fixed_point: 5
-    fixed_point: 6
-    fixed_point: 7
-    fixed_point: 10
-    fixed_point: 11
-    fixed_point: 14
-    fixed_point: 15
-    fixed_point: 18
-    fixed_point: 19
-    fixed_point: 20
-    fixed_point: 21
-    fixed_point: 24
-    fixed_point: 25
-  }
-}
-layers {
-  name: "accuracy"
-  type: ACCURACY_REGRESSION
-  bottom: "fc8"
-  bottom: "label"
-  top: "accuracy"
-  include: { phase: TEST }
-}
-layers {
-  name: "loss2"
-  type: CUSTOM_EU_LOSS
-  bottom: "fc9"
-  bottom: "label"
-  top: "loss2"
-  loss_weight: 2
-  custom_eu_loss_param {
-    is_selected: true
-    # pridict: neck, head top
-    selected_point: 12
-    selected_point: 13
-    selected_point: 26
-    selected_point: 27
-  }
 }

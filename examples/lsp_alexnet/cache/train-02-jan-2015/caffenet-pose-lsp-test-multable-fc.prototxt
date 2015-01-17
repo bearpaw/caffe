@@ -5,9 +5,9 @@ layers {
   top: "data"
   top: "label"
   hdf5_data_param {
-    source: "/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_train_val/lsp_val.txt"
+    source: "/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_train_val_top10/lsp_train.txt"
     batch_size: 128
-	shuffle: 1
+  shuffle: 1
   }
   include: { phase: TRAIN }
 }
@@ -17,7 +17,7 @@ layers {
   top: "data"
   top: "label"
   hdf5_data_param {
-    source: "/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_test_full/lsp_test_full_mean.txt"
+    source: "/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_test_top5/lsp_test_mean.txt"
     batch_size: 128
   }
   include: { phase: TEST }
@@ -27,8 +27,8 @@ layers {
   type: CONVOLUTION
   bottom: "data"
   top: "conv1"
-  blobs_lr: 1
-  blobs_lr: 2
+  blobs_lr: 0
+  blobs_lr: 0
   weight_decay: 1
   weight_decay: 0
   convolution_param {
@@ -78,8 +78,8 @@ layers {
   type: CONVOLUTION
   bottom: "norm1"
   top: "conv2"
-  blobs_lr: 1
-  blobs_lr: 2
+  blobs_lr: 0
+  blobs_lr: 0
   weight_decay: 1
   weight_decay: 0
   convolution_param {
@@ -130,8 +130,8 @@ layers {
   type: CONVOLUTION
   bottom: "norm2"
   top: "conv3"
-  blobs_lr: 1
-  blobs_lr: 2
+  blobs_lr: 0
+  blobs_lr: 0
   weight_decay: 1
   weight_decay: 0
   convolution_param {
@@ -159,8 +159,8 @@ layers {
   type: CONVOLUTION
   bottom: "conv3"
   top: "conv4"
-  blobs_lr: 1
-  blobs_lr: 2
+  blobs_lr: 0
+  blobs_lr: 0
   weight_decay: 1
   weight_decay: 0
   convolution_param {
@@ -189,8 +189,8 @@ layers {
   type: CONVOLUTION
   bottom: "conv4"
   top: "conv5"
-  blobs_lr: 1
-  blobs_lr: 2
+  blobs_lr: 0
+  blobs_lr: 0
   weight_decay: 1
   weight_decay: 0
   convolution_param {
@@ -232,8 +232,8 @@ layers {
   type: INNER_PRODUCT
   bottom: "pool5"
   top: "fc6"
-  blobs_lr: 1
-  blobs_lr: 2
+  blobs_lr: 0
+  blobs_lr: 0
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
@@ -268,8 +268,8 @@ layers {
   type: INNER_PRODUCT
   bottom: "fc6"
   top: "fc7"
-  blobs_lr: 1
-  blobs_lr: 2
+  blobs_lr: 0
+  blobs_lr: 0
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
@@ -304,8 +304,8 @@ layers {
   type: INNER_PRODUCT
   bottom: "fc7"
   top: "fc8"
-  blobs_lr: 1
-  blobs_lr: 2
+  blobs_lr: 0
+  blobs_lr: 0
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
@@ -321,17 +321,144 @@ layers {
   }
 }
 layers {
+  name: "relu8"
+  type: RELU
+  bottom: "fc8"
+  top: "relu8"
+}
+layers {
+  name: "drop8"
+  type: DROPOUT
+  bottom: "relu8"
+  top: "drop8"
+  dropout_param {
+    dropout_ratio: 0.6
+  }
+}
+
+layers {
+  name: "fc9"
+  type: CUSTOM_INNER_PRODUCT
+  bottom: "drop8"
+  top: "fc9"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  custom_inner_product_param {
+    num_output: 4
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }   
+    # only use hip, shoulder, neck, head top
+    fixed_point: 0    
+    fixed_point: 1
+    fixed_point: 4
+    fixed_point: 5
+    fixed_point: 6
+    fixed_point: 7
+    fixed_point: 10
+    fixed_point: 11
+    fixed_point: 14
+    fixed_point: 15
+    fixed_point: 18
+    fixed_point: 19
+    fixed_point: 20
+    fixed_point: 21
+    fixed_point: 24
+    fixed_point: 25
+  }
+}
+layers {
+  name: "loss1"
+  type: CUSTOM_EU_LOSS
+  bottom: "fc9"
+  bottom: "label"
+  top: "loss1"
+  loss_weight: 1
+  custom_eu_loss_param {
+    is_selected: true
+    # pridict: neck, head top
+    selected_point: 12
+    selected_point: 13
+    selected_point: 26
+    selected_point: 27
+  }
+}
+
+layers {
+  name: "fc8-head"
+  type: INNER_PRODUCT
+  bottom: "fc7"
+  top: "fc8-head"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 4
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "loss2"
+  type: CUSTOM_EU_LOSS
+  bottom: "fc8-head"
+  bottom: "label"
+  top: "loss2"
+  loss_weight: 1
+  custom_eu_loss_param {
+    is_selected: true
+    # pridict: neck, head top
+    selected_point: 12
+    selected_point: 13
+    selected_point: 26
+    selected_point: 27
+  }
+}
+layers {
+  name: "elw10"
+  type: ELTWISE
+  bottom: "fc9"
+  bottom: "fc8-head"
+  top: "elw10"
+  eltwise_param {
+    operation: SUM
+  }
+}
+layers {
+  name: "elw10-loss"
+  type: CUSTOM_EU_LOSS
+  bottom: "elw10"
+  bottom: "label"
+  top: "elw10-loss"
+  custom_eu_loss_param {
+    is_selected: true
+    # pridict: neck, head top
+    selected_point: 12
+    selected_point: 13
+    selected_point: 26
+    selected_point: 27
+  }
+}
+layers {
   name: "accuracy"
   type: ACCURACY_REGRESSION
   bottom: "fc8"
   bottom: "label"
   top: "accuracy"
   include: { phase: TEST }
-}
-layers {
-  name: "loss"
-  type: EUCLIDEAN_LOSS
-  bottom: "fc8"
-  bottom: "label"
-  top: "loss"
 }

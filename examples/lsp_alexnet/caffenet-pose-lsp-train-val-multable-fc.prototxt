@@ -320,33 +320,12 @@ layers {
     }
   }
 }
-layers {
-  name: "loss1"
-  type: EUCLIDEAN_LOSS
-  bottom: "fc8"
-  bottom: "label"
-  top: "loss1"
-}
 
-layers {
-  name: "relu8"
-  type: RELU
-  bottom: "fc8"
-  top: "relu8"
-}
-layers {
-  name: "drop8"
-  type: DROPOUT
-  bottom: "relu8"
-  top: "drop8"
-  dropout_param {
-    dropout_ratio: 0.5
-  }
-}
+#----- head from torsal location ------#
 layers {
   name: "fc9"
   type: CUSTOM_INNER_PRODUCT
-  bottom: "drop8"
+  bottom: "fc8"
   top: "fc9"
   blobs_lr: 1
   blobs_lr: 2
@@ -380,6 +359,45 @@ layers {
     fixed_point: 25
   }
 }
+
+
+#----- head from FC feature ------#
+layers {
+  name: "fc8-head"
+  type: INNER_PRODUCT
+  bottom: "fc7"
+  top: "fc8-head"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 4
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+
+#----- head from FC feature ------#
+layers {
+  name: "elw9"
+  type: ELTWISE
+  bottom: "fc9"
+  bottom: "fc8-head"
+  top: "elw9"
+  eltwise_param {
+    operation: SUM
+  }
+}
+
+
 layers {
   name: "accuracy"
   type: ACCURACY_REGRESSION
@@ -388,18 +406,19 @@ layers {
   top: "accuracy"
   include: { phase: TEST }
 }
+
 layers {
-  name: "loss2"
+  name: "loss"
   type: CUSTOM_EU_LOSS
-  bottom: "fc9"
+  bottom: "elw9"
   bottom: "label"
-  top: "loss2"
-  loss_weight: 2
+  top: "loss"
+  loss_weight: 1
   custom_eu_loss_param {
     is_selected: true
-    selected_point: 6
-    selected_point: 7
-    selected_point: 20
-    selected_point: 21
+    selected_point: 12
+    selected_point: 13
+    selected_point: 26
+    selected_point: 27
   }
 }

@@ -12,16 +12,16 @@ top_k = 5;
 # extract parameters
 prototxt = "/home/wyang/github/caffe/examples/lsp_alexnet_attr/caffenet-pose-lsp-train-val.prototxt"
 model_prefix = "/home/wyang/github/caffe/examples/lsp_alexnet_attr/pose_caffenet_train_iter_"
-layer = "joint_y"
-leveldb = "dec-29-2014"
+layer = "fc8"
+leveldb = "Jan-01-2014"
 batchsize = 100
 batchnum = top_k*10
-dim = 14
+dim = 28
 out_dir = leveldb + "-mat/"
 subprocess.call(["mkdir", out_dir])
 
 # start iterations
-model_idx = range(1000, 1001, 1000)
+model_idx = range(95000, 138000, 1000)
 for idx in model_idx:
 	print "Processing {}".format(idx);
 	output = out_dir + "test_labels_" + layer + "_" + str(idx) +".mat"

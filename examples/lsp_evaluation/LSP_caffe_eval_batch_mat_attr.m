@@ -1,52 +1,27 @@
 addpath(genpath('BUFFY'));
 clc; clear all; close all;
 
-DEBUG = 1;
+DEBUG = 0;
 top_k = 5;
-cache_prefix = '2015-01-03';
+cache_prefix = '2014-12-31';
 
 %--------------------------------------------
 % Translate predicted pose to original image
 cropsize = 227;
-caffe_pred = '/home/wyang/github/caffe/examples/lsp_alexnet/extract_features/dec-07-2014-mat/test_labels_fc8_1000.mat';
-load(caffe_pred); % predicted
-load('/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_test_top5/pos.mat');   % test information
-feats1 = feats(1:length(pos), :);
+
+load('/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_test_top_attr/pos.mat');   % test information
 load '/home/wyang/Code/PE1.41DBN_human_detector/LSP/bbox/lsp_bbox_caffe_0918.mat';  detects = detects(1001:end); % detects bbox
 
 
 result = [];
 
 itercnt = 0;
-for idx = [1000:1000:9000]
+for idx = [1000:1000:137000]
 
     fprintf('Processing ITER: %d\n', idx);
     
-load(['/home/wyang/github/caffe/examples/lsp_alexnet/extract_features/jan-06-2015-mat/test_labels_elw9_' int2str(idx) '.mat']);
-
-feats2 = feats(1:length(pos), :);
-
-% feats3 = zeros(length(pos), 4);
-% feats3(:, 1) = feats1(:, 13);
-% feats3(:, 2) = feats1(:, 14);
-% feats3(:, 3) = feats1(:, 27);
-% feats3(:, 4) = feats1(:, 28);
-
-% head
-feats1(:, 13) = feats2(:, 1);
-feats1(:, 14) = feats2(:, 2);
-feats1(:, 27) = feats2(:, 3);
-feats1(:, 28) = feats2(:, 4);
-
-% % right arm
-% feats1(:, 7) = feats2(:, 1);
-% feats1(:, 8) = feats2(:, 2);
-% feats1(:, 21) = feats2(:, 3);
-% feats1(:, 22) = feats2(:, 4);
-
-
-feats = feats1;
-
+    load(['/home/wyang/github/caffe/examples/lsp_alexnet_attr/extract_features/Jan-01-2014-mat/test_labels_fc8_' int2str(idx) '.mat']);
+    feats = feats(1:length(pos), :);
 
 database = '/home/wyang/Datasets/lsp_dataset/';
 imlist = dir([database 'images/*.jpg']);
@@ -78,7 +53,7 @@ for i = 1:length(imlist)
         cnt = cnt + 1;
         [ph, pw, ~] = size(patch(cnt).im);
         prx = feats(cnt, 1:14); 
-        pry = feats(cnt, 15:end);
+        pry = feats(cnt, 15:28);
 
         prx = prx*cropsize / (cropsize / pw);
         pry = pry*cropsize / (cropsize / ph);

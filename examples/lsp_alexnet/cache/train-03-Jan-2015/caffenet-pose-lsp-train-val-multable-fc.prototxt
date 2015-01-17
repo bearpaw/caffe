@@ -17,7 +17,7 @@ layers {
   top: "data"
   top: "label"
   hdf5_data_param {
-    source: "/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_test_full/lsp_test_full_mean.txt"
+    source: "/home/wyang/Code/PE1.41DBN_human_detector/LSP/cache_test_top5/lsp_test_mean.txt"
     batch_size: 128
   }
   include: { phase: TEST }
@@ -345,8 +345,7 @@ layers {
     bias_filler {
       type: "constant"
       value: 0
-    }   
-    # only use hip, shoulder, neck, head top
+    }    
     fixed_point: 0    
     fixed_point: 1
     fixed_point: 4
@@ -382,7 +381,43 @@ layers {
   loss_weight: 2
   custom_eu_loss_param {
     is_selected: true
-    # pridict: neck, head top
+    selected_point: 12
+    selected_point: 13
+    selected_point: 26
+    selected_point: 27
+  }
+}
+
+layers {
+  name: "fc8-head"
+  type: INNER_PRODUCT
+  bottom: "fc7"
+  top: "fc8-head"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 4
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layers {
+  name: "loss3"
+  type: CUSTOM_EU_LOSS
+  bottom: "fc8-head"
+  bottom: "label"
+  top: "loss3"
+  loss_weight: 2
+  custom_eu_loss_param {
+    is_selected: true
     selected_point: 12
     selected_point: 13
     selected_point: 26

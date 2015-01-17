@@ -1,4 +1,4 @@
-function [scores,list_im] = matcaffe_batch(list_im, use_gpu)
+function feat = matcaffe_batch(list_im, use_gpu)
 % scores = matcaffe_batch(list_im, use_gpu)
 %
 % Demo of the matlab wrapper using the ILSVRC network.
@@ -20,7 +20,15 @@ function [scores,list_im] = matcaffe_batch(list_im, use_gpu)
 %  scores = matcaffe_batch('list_images.txt', 1);
 if nargin < 1
   % For test purposes
-  list_im = {'peppers.png','onions.png'};
+  imdir = '/home/wyang/Data/Code/pose/PE1.41-milestone1/';
+  load(['/home/wyang/Data/Code/pose/PE1.41-milestone1/cache/LSP_P26_K7_train_warped.mat'], 'warped');
+  shuffle_map = randperm(length(warped));
+  warped(shuffle_map) = warped;
+  warped = warped(1: 105);
+  list_im = cell(length(warped), 1);
+  for i = 1:length(warped)
+      list_im{i} = [imdir warped(i).im];
+  end
 end
 if ischar(list_im)
     %Assume it is a file contaning the list of images
@@ -29,7 +37,8 @@ if ischar(list_im)
 end
 % Adjust the batch size and dim to match with models/bvlc_reference_caffenet/deploy.prototxt
 batch_size = 10;
-dim = 1000;
+dim = 5;
+nchannel = 32;
 disp(list_im)
 if mod(length(list_im),batch_size)
     warning(['Assuming batches of ' num2str(batch_size) ' images rest will be filled with zeros'])
@@ -39,38 +48,32 @@ end
 if exist('use_gpu', 'var')
   matcaffe_init(use_gpu);
 else
-  matcaffe_init(1);
+  matcaffe_init(1, '../../examples/lsp_patch/lsp-xianjie-feature-deploy.prototxt','/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/lsp-patch-train_iter_300000.caffemodel');
 end
 
-d = load('ilsvrc_2012_mean');
-IMAGE_MEAN = d.image_mean;
 
 % prepare input
 
 num_images = length(list_im);
-scores = zeros(dim,num_images,'single');
+feat = zeros(dim, dim, nchannel, ceil(length(list_im)/batch_size)*batch_size,'single');
+labels = zeros(1, ceil(length(list_im)/batch_size)*batch_size);
+
 num_batches = ceil(length(list_im)/batch_size)
 initic=tic;
 for bb = 1 : num_batches
     batchtic = tic;
     range = 1+batch_size*(bb-1):min(num_images,batch_size * bb);
+    featidx =  1+batch_size*(bb-1):batch_size * bb;
     tic
-    input_data = prepare_batch(list_im(range),IMAGE_MEAN,batch_size);
+%     labels(:, range) = prepare_batch_label(warped(range),batch_size);
+    input_data = prepare_batch(list_im(range),batch_size);
     toc, tic
     fprintf('Batch %d out of %d %.2f%% Complete ETA %.2f seconds\n',...
         bb,num_batches,bb/num_batches*100,toc(initic)/bb*(num_batches-bb));
     output_data = caffe('forward', {input_data});
-    weights = caffe('get_weights');
     toc
-    output_data = squeeze(output_data{1});
-    scores(:,range) = output_data(:,mod(range-1,batch_size)+1);
+    size(squeeze(output_data{1}))
+    feat(:, :, :, featidx) = squeeze(output_data{1});
     toc(batchtic)
 end
 toc(initic);
-
-if exist('filename', 'var')
-    save([filename '.probs.mat'],'list_im','scores','-v7.3');
-end
-
-
-
