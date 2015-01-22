@@ -1,9 +1,3 @@
-name: "XianjieNet"
-input: "data"
-input_dim: 10
-input_dim: 3
-input_dim: 28
-input_dim: 28
 layers {
   name: "conv1"
   type: CONVOLUTION

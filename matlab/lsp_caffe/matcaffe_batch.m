@@ -47,7 +47,7 @@ end
 if exist('use_gpu', 'var')
   matcaffe_init(use_gpu);
 else
-  matcaffe_init(1, '../../examples/lsp_patch/lsp-xianjie-deploy.prototxt','/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/lsp-patch-train_iter_300000.caffemodel');
+  matcaffe_init(1, '../../examples/lsp_patch_const/lsp-xianjie-deploy.prototxt','/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/model-01-16/lsp-patch-train_iter_1000.caffemodel');
 end
 
 

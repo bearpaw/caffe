@@ -1,4 +1,6 @@
-function feat = matcaffe_batch(list_im, use_gpu)
+% function feat = matcaffe_batch(list_im, use_gpu)
+function matcaffe_batch(list_im, use_gpu)
+
 % scores = matcaffe_batch(list_im, use_gpu)
 %
 % Demo of the matlab wrapper using the ILSVRC network.
@@ -20,15 +22,13 @@ function feat = matcaffe_batch(list_im, use_gpu)
 %  scores = matcaffe_batch('list_images.txt', 1);
 if nargin < 1
   % For test purposes
-  imdir = '/home/wyang/Data/Code/pose/PE1.41-milestone1/';
-  load(['/home/wyang/Data/Code/pose/PE1.41-milestone1/cache/LSP_P26_K7_train_warped.mat'], 'warped');
-  shuffle_map = randperm(length(warped));
-  warped(shuffle_map) = warped;
-  warped = warped(1: 105);
-  list_im = cell(length(warped), 1);
-  for i = 1:length(warped)
-      list_im{i} = [imdir warped(i).im];
+  imdir = '/home/wyang/github/caffe/matlab/testdata/';
+  imlist = dir([imdir '*.jpg']);
+  for i = 1:length(imlist)
+      [p, imname, ext] = fileparts(imlist(i).name); imname
+      list_im{i} = [imdir imname ext];
   end
+  [imh, imw, ~] = size(imread(list_im{4}));
 end
 if ischar(list_im)
     %Assume it is a file contaning the list of images
@@ -48,7 +48,7 @@ end
 if exist('use_gpu', 'var')
   matcaffe_init(use_gpu);
 else
-  matcaffe_init(1, '../../examples/lsp_patch/lsp-xianjie-feature-deploy.prototxt','/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/lsp-patch-train_iter_300000.caffemodel');
+  matcaffe_init(1, '../../examples/lsp_patch_const/lsp-xianjie-deploy2.prototxt','/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/model-01-16/lsp-patch-train_iter_300000.caffemodel');
 end
 
 
@@ -66,14 +66,15 @@ for bb = 1 : num_batches
     featidx =  1+batch_size*(bb-1):batch_size * bb;
     tic
 %     labels(:, range) = prepare_batch_label(warped(range),batch_size);
-    input_data = prepare_batch(list_im(range),batch_size);
+    input_data = prepare_batch(list_im(range),batch_size, imw, imh);
+    size(input_data)
     toc, tic
     fprintf('Batch %d out of %d %.2f%% Complete ETA %.2f seconds\n',...
         bb,num_batches,bb/num_batches*100,toc(initic)/bb*(num_batches-bb));
     output_data = caffe('forward', {input_data});
+    size(output_data{1})
     toc
-    size(squeeze(output_data{1}))
-    feat(:, :, :, featidx) = squeeze(output_data{1});
+%     feat(:, :, :, featidx) = squeeze(output_data{1});
     toc(batchtic)
 end
 toc(initic);

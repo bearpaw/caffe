@@ -1,33 +1,24 @@
-name: "XianjieNet"
-input: "data"
-input_dim: 10
-input_dim: 3
-input_dim: 28
-input_dim: 28
-layers {
-  name: "norm0"
-  type: LRN
-  bottom: "data"
-  top: "norm0"
-  lrn_param {
-    norm_region: WITHIN_CHANNEL
-    local_size: 3
-    alpha: 5e-05
-    beta: 0.75
-  }
-}
-#--------------------------------
-# Conv Layers
-#--------------------------------
 layers {
   name: "conv1"
   type: CONVOLUTION
-  bottom: "norm0"
+  bottom: "data"
   top: "conv1"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
   convolution_param {
     num_output: 32
     kernel_size: 5
     stride: 1
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
 }
 layers {
@@ -63,9 +54,21 @@ layers {
   type: CONVOLUTION
   bottom: "norm1"
   top: "conv2"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
   convolution_param {
     num_output: 128
     kernel_size: 3
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
 }
 layers {
@@ -101,10 +104,22 @@ layers {
   type: CONVOLUTION
   bottom: "norm2"
   top: "conv3"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
   convolution_param {
     num_output: 256
     pad: 1
     kernel_size: 3
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
 }
 layers {
@@ -118,10 +133,22 @@ layers {
   type: CONVOLUTION
   bottom: "conv3"
   top: "conv4"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
   convolution_param {
     num_output: 128
     pad: 1
     kernel_size: 3
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
 }
 layers {
@@ -135,10 +162,22 @@ layers {
   type: CONVOLUTION
   bottom: "conv4"
   top: "conv5"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
   convolution_param {
     num_output: 32
     pad: 1
     kernel_size: 3
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
 }
 layers {
@@ -147,7 +186,6 @@ layers {
   bottom: "conv5"
   top: "conv5"
 }
-
 layers {
   name: "pool5"
   type: POOLING
