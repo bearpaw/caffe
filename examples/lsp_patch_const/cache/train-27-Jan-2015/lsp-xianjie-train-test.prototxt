@@ -1,9 +1,34 @@
 name: "XianjieNet"
-input: "data"
-input_dim: 10
-input_dim: 3
-input_dim: 28
-input_dim: 28
+#--------------------------------
+# Input Data
+#--------------------------------
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "data"
+  top: "label"
+  hdf5_data_param {
+    source: "/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/lsp_train_const.txt"
+    batch_size: 128
+    shuffle: 1
+  }
+  include: { phase: TRAIN }
+}
+
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "data"
+  top: "label"
+  hdf5_data_param {
+    source: "/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/lsp_test_const.txt"
+    batch_size: 100
+  }
+  include: { phase: TEST }
+}
+#--------------------------------
+# Conv Layers
+#--------------------------------
 layers {
   name: "conv1"
   type: CONVOLUTION
@@ -193,13 +218,147 @@ layers {
   top: "conv5"
 }
 layers {
-  name: "pool5"
-  type: POOLING
+  name: "fc6-conv5"
+  type: INNER_PRODUCT
   bottom: "conv5"
-  top: "pool5"
-  pooling_param {
-    pool: MAX
-    kernel_size: 1
-    stride: 1
+  top: "fc6-conv5"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 183
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
+}
+
+layers {
+  name: "loss-conv"
+  type: SOFTMAX_LOSS
+  bottom: "fc6-conv5"
+  bottom: "label"
+}
+
+layers {
+  name: "accuracy-conv"
+  type: ACCURACY
+  bottom: "fc6-conv5"
+  bottom: "label"
+  top: "accuracy-conv"
+  include: { phase: TEST }
+}
+
+layers {
+  name: "fc6"
+  type: INNER_PRODUCT
+  bottom: "conv5"
+  top: "fc6"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 4096
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layers {
+  name: "relu6"
+  type: RELU
+  bottom: "fc6"
+  top: "fc6"
+}
+layers {
+  name: "drop6"
+  type: DROPOUT
+  bottom: "fc6"
+  top: "fc6"
+  dropout_param {
+    dropout_ratio: 0.5
+  }
+}
+layers {
+  name: "fc7"
+  type: INNER_PRODUCT
+  bottom: "fc6"
+  top: "fc7"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 4096
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layers {
+  name: "relu7"
+  type: RELU
+  bottom: "fc7"
+  top: "fc7"
+}
+layers {
+  name: "drop7"
+  type: DROPOUT
+  bottom: "fc7"
+  top: "fc7"
+  dropout_param {
+    dropout_ratio: 0.5
+  }
+}
+layers {
+  name: "fc8"
+  type: INNER_PRODUCT
+  bottom: "fc7"
+  top: "fc8"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 183
+    weight_filler {
+      type: "gaussian"
+      std: 0.01
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layers {
+  name: "accuracy"
+  type: ACCURACY
+  bottom: "fc8"
+  bottom: "label"
+  top: "accuracy-fc8"
+  include: { phase: TEST }
+}
+layers {
+  name: "loss"
+  type: SOFTMAX_LOSS
+  bottom: "fc8"
+  bottom: "label"
 }

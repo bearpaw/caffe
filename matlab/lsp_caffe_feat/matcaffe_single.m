@@ -1,4 +1,5 @@
 function feat = matcaffe_single(im, protofile, caffemodel, use_gpu, batch_size, dim, nchannel, imagemean)
+sbin = 4;
 % scores = matcaffe_batch(list_im, use_gpu)
 %
 % Demo of the matlab wrapper using the ILSVRC network.
@@ -61,6 +62,15 @@ function images = prepare_image(im, imagemean)
 % ------------------------------------------------------------------------
 images = zeros(size(im, 1), size(im, 2), 3, 2,'single');
 try
+    % resize image
+    [dimy, dimx, ~] = size(im);
+    blocky = round(dimy / sbin);
+    blockx = round(dimx / sbin);
+    visibley = blocky*sbin;
+    visiblex = blockx*sbin;    
+    im = double(imresize(im, [visibley, visiblex]));
+    
+    % prepare caffe input
     im = single(im);
     im = im - imagemean;
     % Transform GRAY to RGB

@@ -1,9 +1,9 @@
 name: "XianjieNet"
 input: "data"
-input_dim: 1
+input_dim: 100
 input_dim: 3
 input_dim: 160
-input_dim: 72
+input_dim: 70
 #-----------------------------------
 # CONV
 #-----------------------------------
@@ -134,16 +134,4 @@ layers {
   top: "conv5"
   name: "relu5"
   type: RELU
-}
-
-layers {
-  bottom: "conv5"
-  top: "pool5"
-  name: "pool5"
-  type: POOLING
-  pooling_param {
-    pool: MAX
-    kernel_size: 1
-    stride: 1
-  }
 }

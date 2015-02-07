@@ -8,7 +8,7 @@ if nargin < 1
 end
 if nargin < 2 || isempty(model_def_file)
   % By default use imagenet_deploy
-  model_def_file = '../../models/bvlc_reference_caffenet/deploy.prototxt';
+  model_def_file = '../../models/bvlc_reference_caffenet/deploy-data.prototxt';
 end
 if nargin < 3 || isempty(model_file)
   % By default use caffe reference model

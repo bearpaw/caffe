@@ -15,7 +15,7 @@ plt.rcParams['image.interpolation'] = 'nearest'
 plt.rcParams['image.cmap'] = 'gray'
 
 net = caffe.Classifier(caffe_root + 'examples/FLIC_patch/flic-xianjie-deploy.prototxt',
-                       '/home/wyang/Data/cache/caffe/FLIC/models/modelsflic-patch-train_iter_500000.caffemodel')
+                       '/home/wyang/Data/cache/caffe/FLIC/models/modelsflic-patch-train_iter_50000.caffemodel')
 
 net.set_phase_test()
 net.set_mode_gpu()

@@ -1,9 +1,9 @@
 name: "XianjieNet"
 input: "data"
-input_dim: 1
+input_dim: 100
 input_dim: 3
 input_dim: 160
-input_dim: 72
+input_dim: 70  
 #-----------------------------------
 # CONV
 #-----------------------------------
@@ -135,15 +135,19 @@ layers {
   name: "relu5"
   type: RELU
 }
-
 layers {
+  name: "fc6-conv"
+  type: CONVOLUTION
   bottom: "conv5"
-  top: "pool5"
-  name: "pool5"
-  type: POOLING
-  pooling_param {
-    pool: MAX
-    kernel_size: 1
-    stride: 1
+  top: "fc6-conv"
+  convolution_param {
+    num_output: 183
+    kernel_size: 5
   }
+}
+layers {
+  name: "prob"
+  type: SOFTMAX
+  bottom: "fc6-conv"
+  top: "prob"
 }

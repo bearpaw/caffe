@@ -15,7 +15,7 @@ plt.rcParams['image.interpolation'] = 'nearest'
 plt.rcParams['image.cmap'] = 'gray'
 
 net = caffe.Classifier(caffe_root + 'examples/lsp_patch/lsp-xianjie-deploy.prototxt',
-                       '/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/lsp-patch-train_iter_300000.caffemodel')
+                       '/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/model-01-14/lsp-patch-train_iter_300000.caffemodel')
 
 net.set_phase_test()
 net.set_mode_gpu()
@@ -24,7 +24,7 @@ net.set_mode_gpu()
 # net.set_raw_scale('data', 255)  # the reference model operates on images in [0,255] range instead of [0,1]
 # net.set_channel_swap('data', (2,1,0))  # the reference model has channels in BGR order instead of RGB
 
-scores = net.predict([caffe.io.load_image('/home/wyang/Data/Code/pose/PE1.41-milestone1/cache/LSP_P26_K7/test/000001_1_1.jpg')])
+scores = net.predict([caffe.io.load_image('im0001.jpg')])
 
 [(k, v.data.shape) for k, v in net.blobs.items()]
 [(k, v[0].data.shape) for k, v in net.params.items()]

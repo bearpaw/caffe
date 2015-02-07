@@ -15,7 +15,7 @@ if nargin < 3 || isempty(model_file)
   model_file = '../../models/bvlc_reference_caffenet/bvlc_reference_caffenet.caffemodel';
 end
 if nargin < 4
-    force_init = 0;
+    force_init = 1;
 end
 
 

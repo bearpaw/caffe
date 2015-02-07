@@ -19,10 +19,30 @@ function matcaffe_batch(list_im, use_gpu)
 %  scores = matcaffe_batch({'peppers.png','onion.png'});
 %  scores = matcaffe_batch('list_images.txt', 1);
 if nargin < 1
-    data = h5read('/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/hdf5-channel-const-mean/0028.h5','/data');
-    labels = h5read('/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/hdf5-channel-const-mean/0028.h5','/label');
+    try
+        load('warp_data.mat', 'data', 'labels');
+    catch
+        % For test purposes
+        datadir = '/home/wyang/Data/Code/pose/PE1.41-milestone1/';
+        load('/home/wyang/Data/Code/pose/PE1.41-milestone1/cache/LSP_K7/wraped-images.mat', 'testwrap');
+        load /home/wyang/Data/Code/pose/PE1.41-milestone1/cache/LSP_K7/lsp-channel-const-mean.mat;
+    %     testwrap = testwrap(1:1000);
+        data = zeros(28, 28, 3, length(testwrap));
+        labels = zeros(1, length(testwrap));
+        stime = tic;
+        for i = 1:length(testwrap)
+            % !!!!! Read as int16 and minus mean
+            data(:, :, :, i) = int16(imread([datadir testwrap(i).im])) - meanimg;
+            if testwrap(i).part == 0 && testwrap(i).cluster == 0
+                labels(i) = 0;
+            else
+                labels(i) = (testwrap(i).part-1)*7 + testwrap(i).cluster;
+            end
+        end
+        toc(stime)
+        save('warp_data.mat', 'data', 'labels');
+    end
 end
-
 % Adjust the batch size and dim to match with models/bvlc_reference_caffenet/deploy.prototxt
 batch_size = 100;
 dim = 183;
@@ -130,6 +150,10 @@ for i=1:num_images
         warning('Problems with file',image_files{i});
     end
 end
+
+
+
+
 
 
 

@@ -35,7 +35,7 @@ if nargin < 8
 end
 
 % init caffe network (spews logging info)
-matcaffe_init(use_gpu, protofile, caffemodel);
+matcaffe_init(use_gpu, protofile, caffemodel, 1);
 
 % prepare input
 num_images = size(images, 4);
@@ -53,4 +53,32 @@ for bb = 1 : num_batches
     feat(:, :, :, featidx) = squeeze(output_data{1});
 end
 feat = double(feat(:, :, :, 1:num_images));
+feat = double(permute(feat,[2 1 3 4]) );
 toc(initic);
+
+% ------------------------------------------------------------------------
+function images = prepare_batch(image_files,batch_size, imagemean)
+% ------------------------------------------------------------------------
+num_images = length(image_files);
+if nargin < 2
+    batch_size = num_images;
+end
+
+IMAGE_DIM = size(image_files, 1);
+
+num_images = size(image_files, 4);
+images = zeros(IMAGE_DIM,IMAGE_DIM,3,batch_size,'single');
+
+for i=1:num_images
+    try
+        im = int16(image_files(:, :, :, i)) - imagemean;
+        im = single(im);
+        % Transform GRAY to RGB
+        if size(im,3) == 1
+            im = cat(3,im,im,im);
+        end
+        images(:,:,:,i) = im;
+    catch
+        warning('Problems with file',image_files{i});
+    end
+end

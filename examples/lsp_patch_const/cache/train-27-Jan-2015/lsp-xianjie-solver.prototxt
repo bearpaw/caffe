@@ -1,5 +1,5 @@
-net: "lsp-xianjie-train-test.prototxt"
-test_iter: 100
+net: "lsp-xianjie-train-test-dummy-data.prototxt"
+test_iter: 10
 test_interval: 1000
 base_lr: 0.001
 # The learning rate policy
@@ -11,5 +11,5 @@ max_iter: 1000000
 momentum: 0.9
 weight_decay: 0.0005
 snapshot: 1000
-snapshot_prefix: "/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/model-01-29/lsp-patch-train"
+snapshot_prefix: "/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/model-01-16/lsp-patch-train"
 solver_mode: GPU
