@@ -11,13 +11,15 @@ We have installed Caffe on Ubuntu 14.04, Ubuntu 12.04, OS X 10.9, and OS X 10.8.
 - [Compilation](#compilation)
 - [Hardware questions](#hardware_questions)
 
+Ask installation questions on the [caffe-users](https://groups.google.com/forum/#!forum/caffe-users) mailing list.
+
 ## Prerequisites
 
 Caffe depends on several software packages.
 
 * [CUDA](https://developer.nvidia.com/cuda-zone) library version 6.5 (recommended), 6.0, 5.5, or 5.0 and the latest driver version for CUDA 6 or 319.* for CUDA 5 (and NOT 331.*)
 * [BLAS](http://en.wikipedia.org/wiki/Basic_Linear_Algebra_Subprograms) (provided via ATLAS, MKL, or OpenBLAS).
-* [OpenCV](http://opencv.org/).
+* [OpenCV](http://opencv.org/) (>= 2.4)
 * [Boost](http://www.boost.org/) (>= 1.55, although only 1.55 and 1.56 are tested)
 * `glog`, `gflags`, `protobuf`, `leveldb`, `snappy`, `hdf5`, `lmdb`
 * For the Python wrapper
@@ -226,10 +228,10 @@ Then, whenever you want to update homebrew, switch back to the master branches, 
     git checkout master
     cd /usr/local/Library/Taps/homebrew/homebrew-science
     git checkout master
-    
+
     # Update homebrew; hopefully this works without errors!
     brew update
-    
+
     # Switch back to the caffe branches with the forumlae that you modified earlier
     cd /usr/local
     git rebase master caffe
@@ -237,8 +239,8 @@ Then, whenever you want to update homebrew, switch back to the master branches, 
     cd /usr/local/Library/Taps/homebrew/homebrew-science
     git rebase master caffe
     # Fix any merge conflicts and commit to caffe branch
-    
-    # Done!            
+
+    # Done!
 
 At this point, you should be running the latest Homebrew packages and your Caffe-related modifications will remain in place.
 
@@ -299,4 +301,4 @@ As a workaround, if you are using Ubuntu 12.04 you can try the following steps t
 
 Once installed, check your times against our [reference performance numbers](performance_hardware.html) to make sure everything is configured properly.
 
-Refer to the project's issue tracker for [hardware/compatibility](https://github.com/BVLC/caffe/issues?labels=hardware%2Fcompatibility&page=1&state=open).
+Ask hardware questions on the [caffe-users](https://groups.google.com/forum/#!forum/caffe-users) mailing list.
