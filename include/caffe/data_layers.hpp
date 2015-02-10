@@ -350,7 +350,42 @@ class WindowDataLayer : public BasePrefetchingDataLayer<Dtype> {
   enum WindowField { IMAGE_INDEX, LABEL, OVERLAP, X1, Y1, X2, Y2, NUM };
   vector<vector<float> > fg_windows_;
   vector<vector<float> > bg_windows_;
+  vector<Dtype> const_mean_;
 };
+
+/**
+ * @brief Provides multi label data to the Net from windows of images files, specified
+ *        by a window data file.
+ *
+ * TODO(dox): thorough documentation for Forward and proto params.
+ */
+template <typename Dtype>
+class MultiLabelWindowDataLayer : public BasePrefetchingDataLayer<Dtype> {
+ public:
+  explicit MultiLabelWindowDataLayer(const LayerParameter& param)
+      : BasePrefetchingDataLayer<Dtype>(param) {}
+  virtual ~MultiLabelWindowDataLayer();
+  virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      vector<Blob<Dtype>*>* top);
+
+  virtual inline LayerParameter_LayerType type() const {
+    return LayerParameter_LayerType_MULTI_LABEL_WINDOW_DATA;
+  }
+  virtual inline int ExactNumBottomBlobs() const { return 0; }
+  virtual inline int ExactNumTopBlobs() const { return 2; }
+
+ protected:
+  virtual unsigned int PrefetchRand();
+  virtual void InternalThreadEntry();
+
+  shared_ptr<Caffe::RNG> prefetch_rng_;
+  vector<std::pair<std::string, vector<int> > > image_database_;
+  enum WindowField { IMAGE_INDEX, OVERLAP, X1, Y1, X2, Y2, NUM };
+  vector<vector<float> > fg_windows_;
+  vector<vector<float> > bg_windows_;
+  int label_size;
+};
+
 
 }  // namespace caffe
 

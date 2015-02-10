@@ -24,12 +24,12 @@
 namespace caffe {
 
 template <typename Dtype>
-WindowDataLayer<Dtype>::~WindowDataLayer<Dtype>() {
+MultiLabelWindowDataLayer<Dtype>::~MultiLabelWindowDataLayer<Dtype>() {
   this->JoinPrefetchThread();
 }
 
 template <typename Dtype>
-void WindowDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+void MultiLabelWindowDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       vector<Blob<Dtype>*>* top) {
   // LayerSetUp runs through the window_file and creates two structures
   // that hold windows: one for foreground (object) windows and one
@@ -44,23 +44,19 @@ void WindowDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   //    height
   //    width
   //    num_windows
-  //    class_index overlap x1 y1 x2 y2
+  //    overlap x1 y1 x2 y2 class_index
 
   LOG(INFO) << "Window data layer:" << std::endl
       << "  foreground (object) overlap threshold: "
-      << this->layer_param_.window_data_param().fg_threshold() << std::endl
+      << this->layer_param_.multi_label_window_data_param().fg_threshold() << std::endl
       << "  background (non-object) overlap threshold: "
-      << this->layer_param_.window_data_param().bg_threshold() << std::endl
+      << this->layer_param_.multi_label_window_data_param().bg_threshold() << std::endl
+      << "  size of labels: "
+      << this->layer_param_.multi_label_window_data_param().label_size() << std::endl
       << "  foreground sampling fraction: "
-      << this->layer_param_.window_data_param().fg_fraction();
+      << this->layer_param_.multi_label_window_data_param().fg_fraction();
 
-  // load const_mean
-  const int mean_size = this->layer_param_.window_data_param().const_mean_size();
-  LOG(INFO) << "  const mean size: " << mean_size;
-  for (int i = 0; i < mean_size; ++i) {
-	  const_mean_.push_back(this->layer_param_.window_data_param().const_mean(i));
-	  LOG(INFO) << const_mean_[i] << ", ";
-  }
+  label_size = this->layer_param_.multi_label_window_data_param().label_size();
 
   const bool prefetch_needs_rand =
       this->transform_param_.mirror() ||
@@ -72,12 +68,10 @@ void WindowDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     prefetch_rng_.reset();
   }
 
-  std::ifstream infile(this->layer_param_.window_data_param().source().c_str());
+  std::ifstream infile(this->layer_param_.multi_label_window_data_param().source().c_str());
   CHECK(infile.good()) << "Failed to open window file "
-      << this->layer_param_.window_data_param().source() << std::endl;
+      << this->layer_param_.multi_label_window_data_param().source() << std::endl;
 
-  map<int, int> label_hist;
-  label_hist.insert(std::make_pair(0, 0));
 
   string hashtag;
   int image_index, channels;
@@ -99,36 +93,35 @@ void WindowDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     int num_windows;
     infile >> num_windows;
     const float fg_threshold =
-        this->layer_param_.window_data_param().fg_threshold();
+        this->layer_param_.multi_label_window_data_param().fg_threshold();
     const float bg_threshold =
-        this->layer_param_.window_data_param().bg_threshold();
+        this->layer_param_.multi_label_window_data_param().bg_threshold();
     for (int i = 0; i < num_windows; ++i) {
-      int label, x1, y1, x2, y2;
+      int x1, y1, x2, y2;
       float overlap;
-      infile >> label >> overlap >> x1 >> y1 >> x2 >> y2;
+      infile >> overlap >> x1 >> y1 >> x2 >> y2;
 
-      vector<float> window(WindowDataLayer::NUM);
-      window[WindowDataLayer::IMAGE_INDEX] = image_index;
-      window[WindowDataLayer::LABEL] = label;
-      window[WindowDataLayer::OVERLAP] = overlap;
-      window[WindowDataLayer::X1] = x1;
-      window[WindowDataLayer::Y1] = y1;
-      window[WindowDataLayer::X2] = x2;
-      window[WindowDataLayer::Y2] = y2;
+      vector<float> window(MultiLabelWindowDataLayer::NUM + label_size);
+      window[MultiLabelWindowDataLayer::IMAGE_INDEX] = image_index;
+      window[MultiLabelWindowDataLayer::OVERLAP] = overlap;
+      window[MultiLabelWindowDataLayer::X1] = x1;
+      window[MultiLabelWindowDataLayer::Y1] = y1;
+      window[MultiLabelWindowDataLayer::X2] = x2;
+      window[MultiLabelWindowDataLayer::Y2] = y2;
+
+      // read window label
+      for (int j = 0; j < label_size; ++j)
+      {
+    	  infile >> window[MultiLabelWindowDataLayer::NUM + j];
+      }
 
       // add window to foreground list or background list
       if (overlap >= fg_threshold) {
-        int label = window[WindowDataLayer::LABEL];
-        CHECK_GT(label, 0);
         fg_windows_.push_back(window);
-        label_hist.insert(std::make_pair(label, 0));
-        label_hist[label]++;
       } else if (overlap < bg_threshold) {
         // background window, force label and overlap to 0
-        window[WindowDataLayer::LABEL] = 0;
-        window[WindowDataLayer::OVERLAP] = 0;
+        window[MultiLabelWindowDataLayer::OVERLAP] = 0;
         bg_windows_.push_back(window);
-        label_hist[0]++;
       }
     }
 
@@ -144,22 +137,16 @@ void WindowDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   LOG(INFO) << "Number of images: " << image_index+1;
 
-  for (map<int, int>::iterator it = label_hist.begin();
-      it != label_hist.end(); ++it) {
-    LOG(INFO) << "class " << it->first << " has " << label_hist[it->first]
-              << " samples";
-  }
-
   LOG(INFO) << "Amount of context padding: "
-      << this->layer_param_.window_data_param().context_pad();
+      << this->layer_param_.multi_label_window_data_param().context_pad();
 
   LOG(INFO) << "Crop mode: "
-      << this->layer_param_.window_data_param().crop_mode();
+      << this->layer_param_.multi_label_window_data_param().crop_mode();
 
   // image
   const int crop_size = this->transform_param_.crop_size();
   CHECK_GT(crop_size, 0);
-  const int batch_size = this->layer_param_.window_data_param().batch_size();
+  const int batch_size = this->layer_param_.multi_label_window_data_param().batch_size();
   (*top)[0]->Reshape(batch_size, channels, crop_size, crop_size);
   this->prefetch_data_.Reshape(batch_size, channels, crop_size, crop_size);
 
@@ -173,12 +160,12 @@ void WindowDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   this->datum_size_ =
       (*top)[0]->channels() * (*top)[0]->height() * (*top)[0]->width();
   // label
-  (*top)[1]->Reshape(batch_size, 1, 1, 1);
-  this->prefetch_label_.Reshape(batch_size, 1, 1, 1);
+  (*top)[1]->Reshape(batch_size, label_size, 1, 1);
+  this->prefetch_label_.Reshape(batch_size, label_size, 1, 1);
 }
 
 template <typename Dtype>
-unsigned int WindowDataLayer<Dtype>::PrefetchRand() {
+unsigned int MultiLabelWindowDataLayer<Dtype>::PrefetchRand() {
   CHECK(prefetch_rng_);
   caffe::rng_t* prefetch_rng =
       static_cast<caffe::rng_t*>(prefetch_rng_->generator());
@@ -187,25 +174,25 @@ unsigned int WindowDataLayer<Dtype>::PrefetchRand() {
 
 // Thread fetching the data
 template <typename Dtype>
-void WindowDataLayer<Dtype>::InternalThreadEntry() {
+void MultiLabelWindowDataLayer<Dtype>::InternalThreadEntry() {
   // At each iteration, sample N windows where N*p are foreground (object)
   // windows and N*(1-p) are background (non-object) windows
 
   Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
   Dtype* top_label = this->prefetch_label_.mutable_cpu_data();
-  const Dtype scale = this->layer_param_.window_data_param().scale();
-  const int batch_size = this->layer_param_.window_data_param().batch_size();
-  const int context_pad = this->layer_param_.window_data_param().context_pad();
+  const Dtype scale = this->layer_param_.multi_label_window_data_param().scale();
+  const int batch_size = this->layer_param_.multi_label_window_data_param().batch_size();
+  const int context_pad = this->layer_param_.multi_label_window_data_param().context_pad();
   const int crop_size = this->transform_param_.crop_size();
   const bool mirror = this->transform_param_.mirror();
   const float fg_fraction =
-      this->layer_param_.window_data_param().fg_fraction();
+      this->layer_param_.multi_label_window_data_param().fg_fraction();
   const Dtype* mean = this->data_mean_.cpu_data();
   const int mean_off = (this->data_mean_.width() - crop_size) / 2;
   const int mean_width = this->data_mean_.width();
   const int mean_height = this->data_mean_.height();
   cv::Size cv_crop_size(crop_size, crop_size);
-  const string& crop_mode = this->layer_param_.window_data_param().crop_mode();
+  const string& crop_mode = this->layer_param_.multi_label_window_data_param().crop_mode();
 
   bool use_square = (crop_mode == "square") ? true : false;
 
@@ -233,7 +220,7 @@ void WindowDataLayer<Dtype>::InternalThreadEntry() {
 
       // load the image containing the window
       pair<std::string, vector<int> > image =
-          image_database_[window[WindowDataLayer<Dtype>::IMAGE_INDEX]];
+          image_database_[window[MultiLabelWindowDataLayer<Dtype>::IMAGE_INDEX]];
 
       cv::Mat cv_img = cv::imread(image.first, CV_LOAD_IMAGE_COLOR);
       if (!cv_img.data) {
@@ -243,10 +230,10 @@ void WindowDataLayer<Dtype>::InternalThreadEntry() {
       const int channels = cv_img.channels();
 
       // crop window out of image and warp it
-      int x1 = window[WindowDataLayer<Dtype>::X1];
-      int y1 = window[WindowDataLayer<Dtype>::Y1];
-      int x2 = window[WindowDataLayer<Dtype>::X2];
-      int y2 = window[WindowDataLayer<Dtype>::Y2];
+      int x1 = window[MultiLabelWindowDataLayer<Dtype>::X1];
+      int y1 = window[MultiLabelWindowDataLayer<Dtype>::Y1];
+      int x2 = window[MultiLabelWindowDataLayer<Dtype>::X2];
+      int y2 = window[MultiLabelWindowDataLayer<Dtype>::Y2];
 
       int pad_w = 0;
       int pad_h = 0;
@@ -342,39 +329,30 @@ void WindowDataLayer<Dtype>::InternalThreadEntry() {
       }
 
       // copy the warped window into top_data
-      if (const_mean_.size() == 3) { // minus constant mean
-		  for (int c = 0; c < channels; ++c) {
-			for (int h = 0; h < cv_cropped_img.rows; ++h) {
-			  for (int w = 0; w < cv_cropped_img.cols; ++w) {
-				Dtype pixel =
-					static_cast<Dtype>(cv_cropped_img.at<cv::Vec3b>(h, w)[c]);
+      for (int c = 0; c < channels; ++c) {
+        for (int h = 0; h < cv_cropped_img.rows; ++h) {
+          for (int w = 0; w < cv_cropped_img.cols; ++w) {
+            Dtype pixel =
+                static_cast<Dtype>(cv_cropped_img.at<cv::Vec3b>(h, w)[c]);
 
-				top_data[((item_id * channels + c) * crop_size + h + pad_h)
-						 * crop_size + w + pad_w]
-					= (pixel - const_mean_[c]) * scale;
-			  }
-			}
-		  }
-      } else { // minus image mean
-		  for (int c = 0; c < channels; ++c) {
-			for (int h = 0; h < cv_cropped_img.rows; ++h) {
-			  for (int w = 0; w < cv_cropped_img.cols; ++w) {
-				Dtype pixel =
-					static_cast<Dtype>(cv_cropped_img.at<cv::Vec3b>(h, w)[c]);
-
-				top_data[((item_id * channels + c) * crop_size + h + pad_h)
-						 * crop_size + w + pad_w]
-					= (pixel
-						- mean[(c * mean_height + h + mean_off + pad_h)
-							   * mean_width + w + mean_off + pad_w])
-					  * scale;
-			  }
-			}
-		  }
+            top_data[((item_id * channels + c) * crop_size + h + pad_h)
+                     * crop_size + w + pad_w]
+                = (pixel
+                    - mean[(c * mean_height + h + mean_off + pad_h)
+                           * mean_width + w + mean_off + pad_w])
+                  * scale;
+          }
+        }
       }
 
+      //-------------------------------------
+      // Multiple label
       // get window label
-      top_label[item_id] = window[WindowDataLayer<Dtype>::LABEL];
+      for (int l = 0; l < label_size; ++l)
+      {
+    	  top_label[item_id*label_size + l] = window[MultiLabelWindowDataLayer<Dtype>::NUM + l];
+      }
+
 
       #if 0
       // useful debugging code for dumping transformed windows to disk
@@ -385,10 +363,10 @@ void WindowDataLayer<Dtype>::InternalThreadEntry() {
       std::ofstream inf((string("dump/") + file_id +
           string("_info.txt")).c_str(), std::ofstream::out);
       inf << image.first << std::endl
-          << window[WindowDataLayer<Dtype>::X1]+1 << std::endl
-          << window[WindowDataLayer<Dtype>::Y1]+1 << std::endl
-          << window[WindowDataLayer<Dtype>::X2]+1 << std::endl
-          << window[WindowDataLayer<Dtype>::Y2]+1 << std::endl
+          << window[MultiLabelWindowDataLayer<Dtype>::X1]+1 << std::endl
+          << window[MultiLabelWindowDataLayer<Dtype>::Y1]+1 << std::endl
+          << window[MultiLabelWindowDataLayer<Dtype>::X2]+1 << std::endl
+          << window[MultiLabelWindowDataLayer<Dtype>::Y2]+1 << std::endl
           << do_mirror << std::endl
           << top_label[item_id] << std::endl
           << is_fg << std::endl;
@@ -414,6 +392,6 @@ void WindowDataLayer<Dtype>::InternalThreadEntry() {
   }
 }
 
-INSTANTIATE_CLASS(WindowDataLayer);
+INSTANTIATE_CLASS(MultiLabelWindowDataLayer);
 
 }  // namespace caffe

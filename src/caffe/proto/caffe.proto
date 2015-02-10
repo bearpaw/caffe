@@ -208,6 +208,7 @@ message NetStateRule {
 // LayerParameter next available ID: 42 (last added: accuracy_regression_param)
 // LayerParameter next available ID: 43 (last added: accuracy_regression_param)
 // LayerParameter next available ID: 44 (last added: custom_eu_loss_param)
+// LayerParameter next available ID: 45 (last added: multi_label_window_data_param)
 message LayerParameter {
   repeated string bottom = 2; // the name of the bottom blobs
   repeated string top = 3; // the name of the top blobs
@@ -232,6 +233,7 @@ message LayerParameter {
   // LayerType next available ID: 39 (last added: ACCURACY_REGRESSION)
   // LayerType next available ID: 40 (last added: CUSTOM_INNER_PRODUCT)
   // LayerType next available ID: 41 (last added: CUSTOM_EU_LOSS)
+  // LayerType next available ID: 42 (last added: MULTI_LABEL_WINDOW_DATA)
   enum LayerType {
     // "NONE" layer type is 0th enum element so that we don't cause confusion
     // by defaulting to an existent LayerType (instead, should usually error if
@@ -276,6 +278,7 @@ message LayerParameter {
     SLICE = 33;
     TANH = 23;
     WINDOW_DATA = 24;
+    MULTI_LABEL_WINDOW_DATA = 41;
     THRESHOLD = 31;
   }
   optional LayerType type = 5; // the layer type from the enum above
@@ -335,6 +338,7 @@ message LayerParameter {
   optional TanHParameter tanh_param = 37;
   optional ThresholdParameter threshold_param = 25;
   optional WindowDataParameter window_data_param = 20;
+  optional MultiLabelWindowDataParameter multi_label_window_data_param = 44;
 
   // Parameters for data pre-processing.
   optional TransformationParameter transform_param = 36;
@@ -737,6 +741,40 @@ message WindowDataParameter {
   // warp: cropped window is warped to a fixed size and aspect ratio
   // square: the tightest square around the window is cropped
   optional string crop_mode = 11 [default = "warp"];
+  // Specify the constant mean in 
+  repeated float const_mean = 12;
+}
+
+// Message that stores parameters used by MultiLabelWindowDataLayer
+message MultiLabelWindowDataParameter {
+  // Specify the data source.
+  optional string source = 1;
+  // For data pre-processing, we can do simple scaling and subtracting the
+  // data mean, if provided. Note that the mean subtraction is always carried
+  // out before scaling.
+  optional float scale = 2 [default = 1];
+  optional string mean_file = 3;
+  // Specify the batch size.
+  optional uint32 batch_size = 4;
+  // Specify if we would like to randomly crop an image.
+  optional uint32 crop_size = 5 [default = 0];
+  // Specify if we want to randomly mirror data.
+  optional bool mirror = 6 [default = false];
+  // Foreground (object) overlap threshold
+  optional float fg_threshold = 7 [default = 0.5];
+  // Background (non-object) overlap threshold
+  optional float bg_threshold = 8 [default = 0.5];
+  // Fraction of batch that should be foreground objects
+  optional float fg_fraction = 9 [default = 0.25];
+  // Amount of contextual padding to add around a window
+  // (used only by the window_data_layer)
+  optional uint32 context_pad = 10 [default = 0];
+  // Mode for cropping out a detection window
+  // warp: cropped window is warped to a fixed size and aspect ratio
+  // square: the tightest square around the window is cropped
+  optional string crop_mode = 11 [default = "warp"];
+  // Specify the label size
+  optional uint32 label_size = 12 [default = 1];
 }
 
 // DEPRECATED: V0LayerParameter is the old way of specifying layer parameters
