@@ -15,8 +15,8 @@ plt.rcParams['figure.figsize'] = (10, 10)
 plt.rcParams['image.interpolation'] = 'nearest'
 plt.rcParams['image.cmap'] = 'gray'
 
-conv_protofile = '../lsp_patch_const/lsp-xianjie-deploy-full-conv.prototxt'
-conv_modelfile = '../lsp_patch_const/cache/lsp-patch-train-full-conv.caffemodel'
+conv_protofile = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-fg0.5/lsp-xianjie-deploy-full-conv.prototxt'
+conv_modelfile = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-fg0.5/lsp-patch-train-full-conv.caffemodel'
 
 # load input and configure preprocessing
 net_full_conv = caffe.Net(conv_protofile, conv_modelfile)
@@ -38,8 +38,8 @@ for j in range(160):
 #print imagemean
 	
 # forward
-im = caffe.io.load_image('im0001.jpg')
-net_full_conv.set_phase_test()
+im = caffe.io.load_image('/home/wyang/Datasets/lsp_dataset/images/im0781.jpg')
+#net_full_conv.set_phase_test()
 net_full_conv.set_mean('data', imagemean)
 net_full_conv.set_channel_swap('data', (2,1,0))
 net_full_conv.set_raw_scale('data', 255.0)
@@ -100,11 +100,21 @@ vis_square.vis_square(feat, padval=1)
 plt.show()
 
 # Conv4
+filters = net_full_conv.params['conv3'][0].data
+print filters.shape
+vis_square.vis_square(filters[:128].reshape(128**2, 3, 3))
+plt.show()
+
 feat = net_full_conv.blobs['conv4'].data[0]
 vis_square.vis_square(feat, padval=1)
 plt.show()
 
 # Conv5
+filters = net_full_conv.params['conv3'][0].data
+print filters.shape
+vis_square.vis_square(filters[:128].reshape(128**2, 3, 3))
+plt.show()
+
 feat = net_full_conv.blobs['conv5'].data[0]
 vis_square.vis_square(feat, padval=1)
 plt.show()

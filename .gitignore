@@ -1,5 +1,8 @@
 ## General
 
+# ignore cache
+matlab/visualize_log/cache/
+
 # But not these files...
 !feat_helper_pb2.py
 !feat_helper_pb2.pyc

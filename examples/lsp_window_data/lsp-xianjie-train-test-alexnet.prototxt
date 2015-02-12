@@ -8,9 +8,9 @@ layers {
   name: "data"
   type: WINDOW_DATA
   window_data_param {
-    source: "/home/wyang/Data/Code/pose/caffe-data-generator/cache/LSP-warp/lsp-train-window.txt"
+    source: "/home/wyang/Data/Code/pose/caffe-data-generator/cache/LSP-warp/lsp-test-window.txt"
     const_mean: [100, 108, 115]
-    batch_size: 512
+    batch_size: 256
     crop_size: 36
     mirror: true
     fg_threshold: 0.5
@@ -57,7 +57,7 @@ layers {
   weight_decay: 1
   weight_decay: 0
   convolution_param {
-    num_output: 32
+    num_output: 96
     kernel_size: 5
     stride: 1
     weight_filler {
@@ -108,7 +108,7 @@ layers {
   weight_decay: 1
   weight_decay: 0
   convolution_param {
-    num_output: 128
+    num_output: 256
     kernel_size: 3
     weight_filler {
       type: "gaussian"

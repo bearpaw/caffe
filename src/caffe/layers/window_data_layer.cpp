@@ -352,6 +352,7 @@ void WindowDataLayer<Dtype>::InternalThreadEntry() {
 				top_data[((item_id * channels + c) * crop_size + h + pad_h)
 						 * crop_size + w + pad_w]
 					= (pixel - const_mean_[c]) * scale;
+				// LOG(INFO) << "CONST MEAN: " << const_mean_[c];
 			  }
 			}
 		  }
@@ -375,6 +376,18 @@ void WindowDataLayer<Dtype>::InternalThreadEntry() {
 
       // get window label
       top_label[item_id] = window[WindowDataLayer<Dtype>::LABEL];
+
+      /*-------------------------------------------------
+       * DUBUG ONLY: visualize crop image
+       */
+//      int cur_label = (int)top_label[item_id];
+//      std::string windowname = "head";
+//      if (cur_label >= 162 && cur_label <= 168) {
+//          cv::namedWindow( windowname, cv::WINDOW_AUTOSIZE );// Create a window for display.
+//          cv::imshow( windowname, cv_cropped_img );                   // Show our image inside it.
+//          cv::waitKey(0);
+//      }
+      /*--------------------------------------------------*/
 
       #if 0
       // useful debugging code for dumping transformed windows to disk

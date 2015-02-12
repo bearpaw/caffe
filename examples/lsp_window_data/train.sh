@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
 
-prefix=train-08-Feb-2015-1
+prefix=train-11-Feb-2015
 postfix=train
 
 mkdir cache
 mkdir cache/$prefix
-mkdir /home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/model-$prefix/
+mkdir /home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/$prefix/
 
 TOOLS=../../build/tools
 
