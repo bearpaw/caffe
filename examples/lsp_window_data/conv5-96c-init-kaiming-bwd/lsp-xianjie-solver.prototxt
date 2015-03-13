@@ -7,9 +7,9 @@ lr_policy: "step"
 gamma: 0.5
 stepsize: 7000
 display: 20
-max_iter: 1000000
+max_iter: 150000
 momentum: 0.9
 weight_decay: 0.0005
 snapshot: 1000
-snapshot_prefix: "/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/train-12-Feb-2015-conv5-96-2/lsp-patch-train"
+snapshot_prefix: "/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/train-04-March-2015-conv5-96-bwd/lsp-patch-train"
 solver_mode: GPU

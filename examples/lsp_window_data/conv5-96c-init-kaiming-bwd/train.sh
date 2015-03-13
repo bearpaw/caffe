@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-prefix=train-12-Feb-2015-conv5-96-2
+prefix=train-04-March-2015-conv5-96-bwd
 postfix=train
 
 mkdir cache
@@ -9,4 +9,4 @@ mkdir /home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/$prefix/
 
 TOOLS=../../../build/tools
 
-$TOOLS/caffe train -solver lsp-xianjie-solver.prototxt -gpu 2 2>&1 | tee cache/$prefix/$prefix-$postfix.log
+$TOOLS/caffe train -solver lsp-xianjie-solver.prototxt -gpu 0 2>&1 | tee cache/$prefix/$prefix-$postfix.log

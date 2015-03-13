@@ -8,10 +8,10 @@ layers {
   name: "data"
   type: WINDOW_DATA
   window_data_param {
-    source: "/home/wyang/Data/Code/pose/caffe-data-generator/cache/LSP_warp_scaled/lsp-train-window.txt"
+    source: "/home/wyang/Data/Code/pose/caffe-data-generator/cache/LSP-warp/lsp-train-window.txt"
     const_mean: [100, 108, 115]
     batch_size: 128
-    crop_size: 72
+    crop_size: 36
     mirror: true
     fg_threshold: 0.5
     bg_threshold: 0.5
@@ -29,10 +29,10 @@ layers {
   name: "data"
   type: WINDOW_DATA
   window_data_param {
-    source: "/home/wyang/Data/Code/pose/caffe-data-generator/cache/LSP_warp_scaled/lsp-test-window.txt"    
+    source: "/home/wyang/Data/Code/pose/caffe-data-generator/cache/LSP-warp/lsp-test-window.txt"    
     const_mean: [100, 108, 115]
     batch_size: 256
-    crop_size: 72
+    crop_size: 36
     mirror: true
     fg_threshold: 0.5
     bg_threshold: 0.5

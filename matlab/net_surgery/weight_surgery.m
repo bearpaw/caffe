@@ -21,17 +21,17 @@ function weight_surgery(im, use_gpu, protopath, modelpath, rmean, gmean, bmean, 
 addpath('../tools/');
 if nargin < 1
   % For test purposes
-  impath = '/home/wyang/github/caffe/matlab/testdata/pyra_01.jpg';
+  impath = '/home/wyang/Datasets/lsp_dataset/images/im1001.jpg';
   im = imread(impath);
 end
 if nargin < 2
     use_gpu = 1;
 end
 if nargin < 3
-    protopath = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-fg0.5/lsp-xianjie-deploy-conv.prototxt';
+    protopath = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-96c/lsp-xianjie-train-test-deploy-conv.prototxt';
 end
 if nargin < 4
-    modelpath = '/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/train-11-Feb-2015-conv5-fg0.5/lsp-patch-train_iter_22000.caffemodel';
+    modelpath = '/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/train-12-Feb-2015-conv5-96-2/lsp-patch-train_iter_55000.caffemodel';
 end
 if nargin < 5
     rmean = 115;
@@ -63,7 +63,12 @@ for i = 1:length(params)
     weights = params(i).weights{1};
     bias = params(i).weights{2};
     layername = params(i).layer_names;  
-    fprintf('%s weights: min: %.4f | max %.4f\n', layername, min(weights(:)), max(weights(:)));
+    [k, s, indim, outdim] = size(weights);
+    initweightstd = sqrt(2/(k*s*indim*outdim));
+    initweightstdfwd = sqrt(2/(k*s*indim));
+    initweightstdbwd = sqrt(2/(k*s*outdim));
+    fprintf('%s weights: min: %.4f | max %.4f | init std fwd: %.4f,  | init std bwd: %.4f | init std all: %.4f\n', layername, min(weights(:)), max(weights(:)), initweightstdfwd, initweightstdbwd, initweightstd);
+    hist(weights(:), 32); pause; close;
     f = display_network_4D(weights, 'conv');
     title(layername);
     pause; close;

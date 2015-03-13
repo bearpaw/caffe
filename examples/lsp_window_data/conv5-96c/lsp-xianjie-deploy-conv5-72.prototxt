@@ -1,49 +1,9 @@
 name: "XianjieNet"
-#--------------------------------
-# Input Data
-#--------------------------------
-layers {
-  top: "data"
-  top: "label"
-  name: "data"
-  type: WINDOW_DATA
-  window_data_param {
-    source: "/home/wyang/Data/Code/pose/caffe-data-generator/cache/LSP_warp_scaled/lsp-train-window.txt"
-    const_mean: [100, 108, 115]
-    batch_size: 128
-    crop_size: 72
-    mirror: true
-    fg_threshold: 0.5
-    bg_threshold: 0.5
-    fg_fraction: 0.5
-    context_pad: 5
-    crop_mode: "warp"
-  }
-  include {
-    phase: TRAIN
-  }
-}
-layers {
-  top: "data"
-  top: "label"
-  name: "data"
-  type: WINDOW_DATA
-  window_data_param {
-    source: "/home/wyang/Data/Code/pose/caffe-data-generator/cache/LSP_warp_scaled/lsp-test-window.txt"    
-    const_mean: [100, 108, 115]
-    batch_size: 256
-    crop_size: 72
-    mirror: true
-    fg_threshold: 0.5
-    bg_threshold: 0.5
-    fg_fraction: 0.25
-    context_pad: 5
-    crop_mode: "warp"
-  }
-  include {
-    phase: TEST
-  }
-}
+input: "data"
+input_dim: 1024
+input_dim: 3
+input_dim: 28
+input_dim: 28
 #-----------------------------------
 # CONV
 #-----------------------------------
@@ -234,42 +194,4 @@ layers {
   top: "conv5"
   name: "relu5"
   type: RELU
-}
-layers {
-  bottom: "conv5"
-  top: "fc6-conv5"
-  name: "fc6-conv5"
-  type: INNER_PRODUCT
-  blobs_lr: 1
-  blobs_lr: 2
-  weight_decay: 1
-  weight_decay: 0
-  inner_product_param {
-    num_output: 183
-    weight_filler {
-      type: "gaussian"
-      std: 0.01
-    }
-    bias_filler {
-      type: "constant"
-      value: 0
-    }
-  }
-}
-layers {
-  bottom: "fc6-conv5"
-  bottom: "label"
-  top: "accuracy-conv"
-  name: "accuracy-conv"
-  type: ACCURACY
-  include {
-    phase: TEST
-  }
-}
-layers {
-  bottom: "fc6-conv5"
-  bottom: "label"
-  top: "loss-conv"
-  name: "loss-conv"
-  type: SOFTMAX_LOSS
 }

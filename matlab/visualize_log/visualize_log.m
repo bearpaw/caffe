@@ -4,7 +4,7 @@ Showfigure = true;
 % prefix = 'train-11-Feb-2015-conv5-fg0.5-2';
 
 logfiledir = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-96c/cache/';
-prefix = 'train-11-Feb-2015-conv5-96';
+prefix = 'train-12-Feb-2015-conv5-96-2';
 postfix = 'train';
 filename = [prefix '-' postfix];
 mkdir(['cache/' filename '/' filename]);

@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-prefix=train-12-Feb-2015-conv5-96-2
+prefix=train-05-March-2015-conv5-96
 postfix=train
 
 mkdir cache

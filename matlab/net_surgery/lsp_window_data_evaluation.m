@@ -1,4 +1,4 @@
-function lsp_pred_surgery(im, use_gpu, protopath, modelpath, rmean, gmean, bmean, sbin)
+function lsp_window_data_evaluation(im, use_gpu, protopath, modelpath, rmean, gmean, bmean, sbin)
 % scores = matcaffe_batch(list_im, use_gpu)
 %
 % Demo of the matlab wrapper using the ILSVRC network.

@@ -7,8 +7,8 @@ sys.path.insert(0, caffe_root + 'python')
 import caffe
 
 # original proto and model
-protofile = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-fg0.5/lsp-xianjie-deploy-predict.prototxt';
-modelfile = '/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/train-11-Feb-2015-conv5-fg0.5/lsp-patch-train_iter_22000.caffemodel';
+protofile = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-96c/lsp-xianjie-deploy-predict-72.prototxt';
+modelfile = '/home/wyang/Data/cache/caffe/LSP_P26_K17_patch/models/train-12-Feb-2015-conv5-96-2/lsp-patch-train_iter_15000.caffemodel';
 
 # Load the original network and extract the fully-connected layers' parameters.
 net = caffe.Net(protofile, modelfile)
@@ -20,8 +20,8 @@ for fc in params:
     print '{} weights are {} dimensional and biases are {} dimensional'.format(fc, fc_params[fc][0].shape, fc_params[fc][1].shape)
 
 # Load the fully-convolutional network to transplant the parameters.
-conv_protofile = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-fg0.5/lsp-xianjie-deploy-full-conv.prototxt'
-conv_modelfile = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-fg0.5/lsp-patch-train-full-conv.caffemodel'
+conv_protofile = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-96c/lsp-xianjie-deploy-full-conv-72.prototxt'
+conv_modelfile = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-96c/lsp-patch-train-full-conv-72.caffemodel'
 
 net_full_conv = caffe.Net(conv_protofile, modelfile)
 params_full_conv = ['fc6-conv']

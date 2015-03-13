@@ -2,8 +2,8 @@ name: "XianjieNet"
 input: "data"
 input_dim: 1
 input_dim: 3
-input_dim: 160
-input_dim: 72
+input_dim: 168
+input_dim: 96
 #-----------------------------------
 # CONV
 #-----------------------------------
@@ -17,7 +17,7 @@ layers {
   weight_decay: 1
   weight_decay: 0
   convolution_param {
-    num_output: 32
+    num_output: 96
     kernel_size: 5
     stride: 1
     weight_filler {
