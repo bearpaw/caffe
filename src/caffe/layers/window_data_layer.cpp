@@ -381,6 +381,10 @@ void WindowDataLayer<Dtype>::InternalThreadEntry() {
       }
 
       cv::Rect roi(x1, y1, x2-x1+1, y2-y1+1);
+//      //---------------------------
+//      LOG(INFO) << "src: "<< image.first << "( " << cv_img.rows << "," << cv_img.cols << " )";
+//      LOG(INFO) << "roi:" << x1 << ", " << y1 << ", " << x2 << ", " << y2;
+
       cv::Mat cv_cropped_img = cv_img(roi);
       cv::resize(cv_cropped_img, cv_cropped_img,
           cv_crop_size, 0, 0, cv::INTER_LINEAR);

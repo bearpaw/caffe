@@ -398,14 +398,6 @@ static void set_mode_gpu(MEX_ARGS) {
   Caffe::set_mode(Caffe::GPU);
 }
 
-static void set_phase_train(MEX_ARGS) {
-  Caffe::set_phase(Caffe::TRAIN);
-}
-
-static void set_phase_test(MEX_ARGS) {
-  Caffe::set_phase(Caffe::TEST);
-}
-
 static void set_device(MEX_ARGS) {
   if (nrhs != 1) {
     ostringstream error_msg;
@@ -548,6 +540,50 @@ static void read_mean(MEX_ARGS) {
     plhs[0] = mx_blob;
 }
 
+
+static mxArray* get_blob_data(const mxArray* const b_name) {
+  if(!mxIsChar(b_name)) {
+      mexErrMsgTxt("get_blob require a string (blob name) as input");
+  }
+          // << " ";
+  char* blob_name = mxArrayToString(b_name);
+  if (!net_->has_blob(blob_name)) {
+      mexErrMsgTxt("Cannot find layer");
+      return NULL;
+  }
+  const shared_ptr<Blob<float> > data_blob
+        = net_->blob_by_name(blob_name);
+  mwSize dims[4] = {data_blob->width(), data_blob->height(),
+                    data_blob->channels(), data_blob->num()};
+  mxArray* mx_data =
+    mxCreateNumericArray(4, dims, mxSINGLE_CLASS, mxREAL);
+  float* data_ptr = reinterpret_cast<float*>(mxGetPr(mx_data));
+  switch (Caffe::mode()) {
+    case Caffe::CPU:
+      caffe_copy(data_blob->count(), data_blob->cpu_data(), data_ptr);
+      break;
+    case Caffe::GPU:
+      caffe_copy(data_blob->count(), data_blob->gpu_data(), data_ptr);
+      break;
+    default:
+      LOG(FATAL) << "Unknown caffe mode: " << Caffe::mode();
+  }
+  return mx_data;
+}
+
+
+static void get_blob(MEX_ARGS) {
+  if (nrhs != 1) {
+    LOG(ERROR) << "Only given " << nrhs << " arguments";
+    mexErrMsgTxt("Wrong number of arguments");
+  }
+  plhs[0] = get_blob_data(prhs[0]);
+}
+
+static void test(MEX_ARGS) {
+  mex_warn("This is test");
+}
+
 /** -----------------------------------------------------------------
  ** Available commands.
  **/
@@ -565,8 +601,6 @@ static handler_registry handlers[] = {
   { "is_initialized",     is_initialized  },
   { "set_mode_cpu",       set_mode_cpu    },
   { "set_mode_gpu",       set_mode_gpu    },
-  { "set_phase_train",    set_phase_train },
-  { "set_phase_test",     set_phase_test  },
   { "set_device",         set_device      },
   { "get_weights",        get_weights     },
   { "set_weights",        set_weights     },
@@ -574,6 +608,8 @@ static handler_registry handlers[] = {
   { "reset",              reset           },
   { "save",               save            },
   { "read_mean",          read_mean       },
+  { "get_blob",           get_blob        },
+  { "test",           test        },
   // The end.
   { "END",                NULL            },
 };
