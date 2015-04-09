@@ -777,6 +777,10 @@ message SumParameter {
   optional string source = 1;
   // Skip offset
   optional uint32 skip = 2 [default = 0];
+  // Number of Mixtures
+  optional uint32 mix_num = 3 [default = 1];
+  // parents
+  repeated uint32 parents = 4;
 }
 
 // DEPRECATED: use LayerParameter.

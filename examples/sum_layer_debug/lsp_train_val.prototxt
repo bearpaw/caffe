@@ -379,18 +379,18 @@ layer {
 }
 
 
-# -------------------- output layer ------------------
+# -------------------- Unary Map ------------------
 layer {
-  name: "fc9"
+  name: "unary"
   type: "Sum"
   bottom: "fc8-conv"
-  top: "fc9"
+  top: "unary"
   sum_param {
     source: "/home/wyang/Data/Code/iccv/chen-nips14-pose-dev/global_ids.txt"
+    parents: [0, 1, 2, 3, 4, 5, 6, 3, 8, 9, 10, 11, 12, 13, 2, 15, 16, 17, 18, 15, 20, 21, 22, 23, 24, 25]
+    mix_num: 13
   }  
-  include: { phase: TRAIN }
 }
-
 
 
 # -------------------- loss layer ------------------

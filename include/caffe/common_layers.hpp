@@ -209,9 +209,89 @@ class SumLayer : public Layer<Dtype> {
 //      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
   int 		skip_;
+  int     mix_num_;
   string  source_;
-	vector<vector <int> >  idx_;
+  vector<int> pa_;
+	vector<vector <int> >  global_IDs; 
+  vector<vector <int> >  nbh_IDs; 
+  vector<vector <int> >  target_IDs; 
+ private:
+  void get_IDs(const vector<int>& pa, const int K, 
+      vector<vector<int> >& nbh_IDs, vector<vector <int> >& global_IDs, vector<vector<int> >& target_IDs) ;
 };
+
+
+/**
+ * @brief Computes the IDPR map
+ */
+template <typename Dtype>
+class IdprLayer : public Layer<Dtype> {
+ public:
+  explicit IdprLayer(const LayerParameter& param)
+      : Layer<Dtype>(param) {}
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline const char* type() const { return "Idpr"; }
+
+ protected:
+  /**
+   * @param bottom input Blob vector (length 2+)
+   *   -# @f$ (N \times C \times H \times W) @f$
+   *      the inputs @f$ x_1 @f$
+   *   -# @f$ (N \times C \times H \times W) @f$
+   *      the inputs @f$ x_2 @f$
+   *   -# ...
+   *   - K @f$ (N \times C \times H \times W) @f$
+   *      the inputs @f$ x_K @f$
+   * @param top output Blob vector (length 1)
+   *   -# @f$ (KN \times C \times H \times W) @f$ if axis == 0, or
+   *      @f$ (N \times KC \times H \times W) @f$ if axis == 1:
+   *      the concatenated output @f$
+   *        y = [\begin{array}{cccc} x_1 & x_2 & ... & x_K \end{array}]
+   *      @f$
+   */
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+//  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+//      const vector<Blob<Dtype>*>& top);
+
+  /**
+   * @brief Computes the error gradient w.r.t. the concatenate inputs.
+   *
+   * @param top output Blob vector (length 1), providing the error gradient with
+   *        respect to the outputs
+   *   -# @f$ (KN \times C \times H \times W) @f$ if axis == 0, or
+   *      @f$ (N \times KC \times H \times W) @f$ if axis == 1:
+   *      containing error gradients @f$ \frac{\partial E}{\partial y} @f$
+   *      with respect to concatenated outputs @f$ y @f$
+   * @param propagate_down see Layer::Backward.
+   * @param bottom input Blob vector (length K), into which the top gradient
+   *        @f$ \frac{\partial E}{\partial y} @f$ is deconcatenated back to the
+   *        inputs @f$
+   *        \left[ \begin{array}{cccc}
+   *          \frac{\partial E}{\partial x_1} &
+   *          \frac{\partial E}{\partial x_2} &
+   *          ... &
+   *          \frac{\partial E}{\partial x_K}
+   *        \end{array} \right] =
+   *        \frac{\partial E}{\partial y}
+   *        @f$
+   */
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+//  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+//      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  int     skip_;
+  int     mix_num_;
+  string  source_;
+  vector<vector <int> >  nhb_ids;
+  vector<vector<vector <int> > > idpr_global_ids; 
+};
+
 
 /**
  * @brief Compute elementwise operations, such as product and sum,
