@@ -13,6 +13,10 @@
 #include "caffe/neuron_layers.hpp"
 #include "caffe/proto/caffe.pb.h"
 
+
+#include "caffe/util/C3dmat.hpp"
+# define Vec3DMat   vector< vector<platero::C3dmat<int>* > >
+
 namespace caffe {
 
 /**
@@ -158,6 +162,7 @@ class SumLayer : public Layer<Dtype> {
       const vector<Blob<Dtype>*>& top);
 
   virtual inline const char* type() const { return "Sum"; }
+  // virtual ~SumLayer(); // release global ID
 
  protected:
   /**
@@ -208,16 +213,18 @@ class SumLayer : public Layer<Dtype> {
 //  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
 //      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
-  int 		skip_;
-  int     mix_num_;
-  string  source_;
+  int 		    skip_;
+  int         mix_num_;
+  string      source_;
   vector<int> pa_;
-	vector<vector <int> >  global_IDs; 
+	Vec3DMat    global_IDs; 
   vector<vector <int> >  nbh_IDs; 
   vector<vector <int> >  target_IDs; 
- private:
-  void get_IDs(const vector<int>& pa, const int K, 
-      vector<vector<int> >& nbh_IDs, vector<vector <int> >& global_IDs, vector<vector<int> >& target_IDs) ;
+
+  /**
+   * Compute global_IDs, nbh_IDs, target_IDs
+   */
+  void get_IDs() ;
 };
 
 
@@ -284,12 +291,19 @@ class IdprLayer : public Layer<Dtype> {
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 //  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
 //      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  int         mix_num_;
+  string      source_;
+  vector<int> pa_;
+  Vec3DMat    global_IDs; 
+  Vec3DMat   idpr_global_ids; 
 
-  int     skip_;
-  int     mix_num_;
-  string  source_;
-  vector<vector <int> >  nhb_ids;
-  vector<vector<vector <int> > > idpr_global_ids; 
+  vector<vector <int> >  nbh_IDs; 
+  vector<vector <int> >  target_IDs; 
+
+  /**
+   * Compute global_IDs, nbh_IDs, target_IDs
+   */
+  void get_IDs() ;
 };
 
 

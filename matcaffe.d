@@ -91,7 +91,8 @@ matcaffe.o: matlab/caffe/matcaffe.cpp \
  include/caffe/vision_layers.hpp include/caffe/common_layers.hpp \
  include/caffe/data_layers.hpp include/caffe/data_transformer.hpp \
  include/caffe/internal_thread.hpp include/caffe/util/db.hpp \
- include/caffe/loss_layers.hpp include/caffe/neuron_layers.hpp
+ include/caffe/loss_layers.hpp include/caffe/neuron_layers.hpp \
+ include/caffe/util/C3dmat.hpp
 
 /usr/local/MATLAB/R2013b/extern/include/mex.h:
 
@@ -324,3 +325,5 @@ include/caffe/util/db.hpp:
 include/caffe/loss_layers.hpp:
 
 include/caffe/neuron_layers.hpp:
+
+include/caffe/util/C3dmat.hpp:

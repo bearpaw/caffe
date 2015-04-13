@@ -27,7 +27,7 @@ layer {
   data_param {
     source: "/home/wyang/Data/Code/pose/chen_nips14_full/cache/lsp-03-06/LMDB_val"
     backend: LMDB
-    batch_size: 260
+    batch_size: 2
   }
   transform_param {
     mean_value: 128
@@ -378,12 +378,21 @@ layer {
   }
 }
 
+# -------------------- softmax layer here ------------------
+layer {
+  name: "prob"
+  type: "Softmax"
+  bottom: "fc8-conv"
+  top: "prob"
+}
+
+
 
 # -------------------- Unary Map ------------------
 layer {
   name: "unary"
   type: "Sum"
-  bottom: "fc8-conv"
+  bottom: "prob"
   top: "unary"
   sum_param {
     source: "/home/wyang/Data/Code/iccv/chen-nips14-pose-dev/global_ids.txt"
@@ -392,6 +401,30 @@ layer {
   }  
 }
 
+layer {
+  name: "unary-silence"
+  type: "Silence"
+  bottom: "unary"
+}
+
+
+# -------------------- IDPR Map ------------------
+layer {
+  name: "idpr"
+  type: "Idpr"
+  bottom: "prob"
+  top: "idpr"
+  sum_param {
+    parents: [0, 1, 2, 3, 4, 5, 6, 3, 8, 9, 10, 11, 12, 13, 2, 15, 16, 17, 18, 15, 20, 21, 22, 23, 24, 25]
+    mix_num: 13
+  }  
+}
+
+layer {
+  name: "idpr-silence"
+  type: "Silence"
+  bottom: "idpr"
+}
 
 # -------------------- loss layer ------------------
 layer {

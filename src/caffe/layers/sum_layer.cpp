@@ -2,10 +2,12 @@
 
 #include "caffe/layer.hpp"
 #include "caffe/util/math_functions.hpp"
-#include "caffe/util/C3dmat.hpp"
 #include "caffe/vision_layers.hpp"
 #include <math.h>
 #include <fstream>
+
+# define Vec3DElem vector<platero::C3dmat<int>* > 
+# define C3DMAT platero::C3dmat<int>
 
 namespace caffe {
 
@@ -13,11 +15,8 @@ template <typename Dtype>
 void SumLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const SumParameter& sum_param = this->layer_param_.sum_param();
-
   // read number of mixtures
   mix_num_ = sum_param.mix_num();
-
-  //-------------------------------------
   //  read parents
   if ( sum_param.parents().size() != 0 ) {
     pa_.clear();
@@ -25,70 +24,8 @@ void SumLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
           sum_param.parents().end(),
           std::back_inserter(pa_));
   }
-  //------------- CHECKED ---------------
-
-	// // read source file
- //  LOG(INFO) << sum_param.source().c_str();
-	// std::ifstream infile(sum_param.source().c_str());
-	// CHECK(infile.good()) << "Failed to open source file "
-	// 		<< sum_param.source()<< std::endl;
- //  string hashtag;
- //  int num_idx;
-	// if (!(infile >> hashtag >> num_idx)) {
-	// 	LOG(FATAL) << "source file is empty";
-	// }
-
-	// do {
-	//     CHECK_EQ(hashtag, "#");
-	//     // read each idx
-	//     vector<int> curidx;
-
-	//     for (int i = 0; i < num_idx; ++i) {
-	//       int cidx;
-	//       infile >> cidx;
-	//       curidx.push_back(cidx);
-	//     }
-	//     global_IDs.push_back(curidx);
-	//   } while (infile >> hashtag >> num_idx);
-
-	// infile.close();
-
   // get IDs
-  get_IDs( pa_, mix_num_, nbh_IDs, global_IDs, target_IDs);
- 
- // LOG(INFO) << "nbh size: " << nbh_IDs.size();
- //  std::ofstream outfile("nbh_ids.txt");
- //  for (int i = 0; i < nbh_IDs.size(); ++i) {
- //    for (int j = 0; j < nbh_IDs[i].size(); ++j) {
- //      outfile << nbh_IDs[i][j] << " ";
- //      LOG(INFO) << nbh_IDs[i][j];
- //    }
- //    outfile << std::endl;
- //  }
- //  outfile.close();
-
-  //  LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!!target size: " << target_IDs.size();
-  // std::ofstream outfile("target_ids.txt");
-  // for (int i = 0; i < target_IDs.size(); ++i) {
-  //   for (int j = 0; j < target_IDs[i].size(); ++j) {
-  //     outfile << target_IDs[i][j] << " ";
-  //     LOG(INFO) << target_IDs[i][j];
-  //   }
-  //   outfile << std::endl;
-  // }
-  // outfile.close();
-
-   LOG(INFO) << "!!!!!!!!!!!!!!!!!!!!!!!!! global size: " << global_IDs.size();
-  std::ofstream outfile("global_IDs.txt");
-  for (int i = 0; i < global_IDs.size(); ++i) {
-    for (int j = 0; j < global_IDs[i].size(); ++j) {
-      outfile << global_IDs[i][j] << " ";
-      //LOG(INFO) << global_IDs[i][j];
-    }
-    outfile << std::endl;
-  }
-  outfile.close();
-  LOG(INFO) << "Global ID saved!";
+  get_IDs();
 }
 
 template <typename Dtype>
@@ -105,8 +42,7 @@ void SumLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 
 template <typename Dtype>
 void SumLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top) {
-  
+      const vector<Blob<Dtype>*>& top) {  
   const Dtype*  bottom_data = bottom[0]->cpu_data();
   Dtype*        top_data = top[0]->mutable_cpu_data();
 
@@ -126,16 +62,23 @@ void SumLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
   for (int n = 0; n < top_num; ++n) {
     for (int c = 0; c < top_channels; ++c) {
-      for (int cidx = 0; cidx < global_IDs[c].size(); ++cidx) {
+      vector<int> global_ids_vec = global_IDs[c][0]->vectorize();
+      
+      for (int nbhid = 1; nbhid < global_IDs[c].size(); ++nbhid) { // number of neighbor
+        vector<int> tmp =  global_IDs[c][nbhid]->vectorize();
+        global_ids_vec.insert(global_ids_vec.end(), tmp.begin(), tmp.end());
+      } // end nbhid
+
+      for (int vid = 0; vid < global_ids_vec.size(); ++vid) {
         for (int h = 0; h < top_height; ++h) {
           for (int w = 0; w < top_width; ++w) {
-            bottom_offset = (((n*bottom_channels + global_IDs[c][cidx])*top_height + h)*top_width + w);
+            bottom_offset = (((n*bottom_channels + global_ids_vec[vid])*top_height + h)*top_width + w);
             int top_offset = (((n*top_channels + c)*top_height + h)*top_width + w);
             *(top_data + top_offset) += *(bottom_data + bottom_offset);
-          }
-        }
-      }
-    }
+          } // end w
+        } // end h
+      } // end vid
+    } // end c 
   } // end of sum bottom maps
 }
 
@@ -164,33 +107,39 @@ void SumLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 
       for (int n = 0; n < top_num; ++n) {
         for (int c = 0; c < top_channels; ++c) {
-          for (int cidx = 0; cidx < global_IDs[c].size(); ++cidx) {
+          vector<int> global_ids_vec = global_IDs[c][0]->vectorize();
+          
+          for (int nbhid = 1; nbhid < global_IDs[c].size(); ++nbhid) { // number of neighbor
+            vector<int> tmp =  global_IDs[c][nbhid]->vectorize();
+            global_ids_vec.insert(global_ids_vec.end(), tmp.begin(), tmp.end());
+          } // end nbhid
+
+          for (int vid = 0; vid < global_ids_vec.size(); ++vid) {
             for (int h = 0; h < top_height; ++h) {
               for (int w = 0; w < top_width; ++w) {
-                bottom_offset = (((n*bottom_channels + global_IDs[c][cidx])*top_height + h)*top_width + w);
+                bottom_offset = (((n*bottom_channels + global_ids_vec[vid])*top_height + h)*top_width + w);
                 int top_offset = (((n*top_channels + c)*top_height + h)*top_width + w);
                 *(bottom_diff + bottom_offset) = *(top_diff + top_offset);
-              }
-            }
-          }
-        } // end of propagate gradients
-      } 
+              } // end w
+            } // end h
+          } // end vid
+        } // end c 
+      } // end of sum bottom maps
       
     }
   }
 }
 
 template <typename Dtype>
-void SumLayer<Dtype>::get_IDs(const vector<int>& pa, const int K, 
-      vector<vector<int> >& nbh_IDs, vector<vector <int> >& global_IDs, vector<vector<int> >& target_IDs) {
-  int p_no = pa.size();
+void SumLayer<Dtype>::get_IDs() {
+  int p_no = pa_.size();
   int t_cnt = 0;
   int g_cnt = 0;
   for (int i = 0; i < p_no; ++i) {
     // compute nbh_IDs
     vector<int> cur_nbh_IDs;
     for (int j = 0; j < p_no; ++j) {
-      if (pa[i] == (j+1) || pa[j] == (i+1)) {
+      if (pa_[i] == (j+1) || pa_[j] == (i+1)) {
         cur_nbh_IDs.push_back(j+1);
       }
     }
@@ -204,12 +153,35 @@ void SumLayer<Dtype>::get_IDs(const vector<int>& pa, const int K,
     target_IDs.push_back(cur_target_IDs);
 
     // compute global ID
-    vector<int> cur_global_IDs;
-    int max_g = pow(mix_num_, cur_nbh_IDs.size());
-    for (int g = 0; g < max_g; ++g) {
-      cur_global_IDs.push_back(++g_cnt);
-      LOG(INFO) << "g_cnt: " << g_cnt;
+    Vec3DElem cur_global_IDs;
+    C3DMAT* mat;
+
+    if (cur_nbh_IDs.size() == 1) {
+      mat = new C3DMAT(mix_num_, 1, 1);
+      for (int row = 0; row < mix_num_; ++row) {
+        mat->set(row, 0, 0, ++g_cnt);
+      }
+    } else if (cur_nbh_IDs.size() == 2) {
+      mat = new C3DMAT(mix_num_, mix_num_, 1);
+      for (int col = 0; col < mix_num_; ++col) {
+        for (int row = 0; row < mix_num_; ++row) {
+          mat->set(row, col, 0, ++g_cnt);
+        }
+      }
+
+    } else if (cur_nbh_IDs.size() == 3) {
+      mat = new C3DMAT(mix_num_, mix_num_, mix_num_);
+      for (int dim = 0; dim < mix_num_; ++dim) {
+        for (int col = 0; col < mix_num_; ++col) {
+          for (int row = 0; row < mix_num_; ++row) {
+            mat->set(row, col, dim, ++g_cnt);
+          }
+        }
+      }
+    } else {
+      LOG(INFO) << "Numbor of neighborhood must between 1-3.";
     }
+    cur_global_IDs.push_back(mat);
     global_IDs.push_back(cur_global_IDs);
   }
 }
