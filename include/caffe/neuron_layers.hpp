@@ -4,6 +4,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <limits> // use by logarithm layer
 
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
@@ -138,6 +139,30 @@ class BNLLLayer : public NeuronLayer<Dtype> {
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+};
+
+
+/**
+ * Logarithm Layer
+ */
+template <typename Dtype>
+class LogarithmLayer : public NeuronLayer<Dtype> {
+ public:
+  explicit LogarithmLayer(const LayerParameter& param)
+      : NeuronLayer<Dtype>(param) {
+        REAL_MEAN = std::numeric_limits<Dtype>::epsilon();
+      }
+
+  virtual inline const char* type() const { return "Logarithm"; }
+
+ protected:
+  /// @copydoc LogarithmLayer
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  // real mean
+  Dtype REAL_MEAN;
 };
 
 /**

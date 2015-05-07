@@ -401,6 +401,14 @@ layer {
   }  
 }
 
+
+layer {
+  name: "logunary"
+  type: "Logarithm"
+  bottom: "unary"
+  top: "unary"
+}
+
 layer {
   name: "unary-silence"
   type: "Silence"
@@ -419,6 +427,14 @@ layer {
     mix_num: 13
   }  
 }
+
+layer {
+  name: "logidpr"
+  type: "Logarithm"
+  bottom: "idpr"
+  top: "idpr"
+}
+
 
 layer {
   name: "idpr-silence"
