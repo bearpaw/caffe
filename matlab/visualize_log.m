@@ -3,15 +3,15 @@ if nargin < 1
   logfile = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-96c/cache/train-11-Feb-2015-conv5-96/train-11-Feb-2015-conv5-96-train.log';
 end
 
-[~, filename, ~] = fileparts(logfile);
+[~, filename, ext] = fileparts(logfile);
 
 if ~exist(['cache/' filename], 'dir')
   mkdir(['cache/' filename]);
 end
 
 system(['../tools/extra/parse_log.sh ' logfile]);
-movefile([filename '.log.train'], ['cache/' filename '/' filename '.train']);
-movefile([filename '.log.test'], ['cache/' filename '/' filename '.test']);
+movefile([filename ext '.train'], ['cache/' filename '/' filename '.train']);
+movefile([filename ext '.test'], ['cache/' filename '/' filename '.test']);
 
 nametrain = ['cache/' filename '/' filename '.train'];
 nametest = ['cache/' filename '/' filename '.test'];
