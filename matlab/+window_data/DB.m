@@ -3,8 +3,9 @@ classdef DB < handle
 % -----------------
 % USAGE
 % -----------------
-%   parser = window_data.DB('path_to_window_data_file');
+%   parser = window_data.DB('path_to_window_data_file', quitemode=0 or 1);
 %   db = parser.get_db();
+%   parser.show_window();
 %
 % Data structure
 % -----------------
@@ -35,9 +36,10 @@ properties (Access = private)
 end
 
 methods
-    %-------------------------
+    %----------------------------------------------------------------------
     % Constructor
-    function this = DB(filename)
+    %----------------------------------------------------------------------
+    function this = DB(filename, quietmode)
         this.db.dbpath = filename;
         this.db.imgcnt = 0;
         this.db.wincnt = 0;
@@ -56,7 +58,9 @@ methods
             this.db.images(this.db.imgcnt).width = str2num(fgetl(dbfile));
             this.db.images(this.db.imgcnt).nwindows = str2num(fgetl(dbfile));
             
-            fprintf('%.8d %s | %d\n', this.db.imgcnt, this.db.images(this.db.imgcnt).path, this.db.images(this.db.imgcnt).nwindows)
+            if ~quietmode
+              fprintf('%.8d %s | %d\n', this.db.imgcnt, this.db.images(this.db.imgcnt).path, this.db.images(this.db.imgcnt).nwindows)
+            end
             this.db.wincnt = this.db.wincnt + this.db.images(this.db.imgcnt).nwindows;
             
             if this.db.images(this.db.imgcnt).nwindows > 0
@@ -75,10 +79,37 @@ methods
         fclose(dbfile);
     end
     
-    %-------------------------
+    %----------------------------------------------------------------------
     % get window_data dataset    
+    %----------------------------------------------------------------------
     function db = get_db(this)
         db = this.db;
+    end
+        
+    %----------------------------------------------------------------------
+    % visulize windows
+    %----------------------------------------------------------------------
+    function show_window(this, num)
+      if nargin < 2
+        num = this.db.imgcnt;
+      end
+      for i = 1:num
+        [~, imname, ext] = fileparts(this.db.images(i).path);
+        im = imread(this.db.images(i).path);
+        figure; title([imname, ext]);
+        imshow(im); hold on;
+        wincolors = colormap(jet(this.db.images(i).nwindows));
+        for w = 1:this.db.images(i).nwindows
+          x1 = this.db.images(i).x1(w);
+          x2 = this.db.images(i).x2(w);
+          y1 = this.db.images(i).y1(w);
+          y2 = this.db.images(i).y2(w);
+          plot([x1, x1, x2, x2, x1], [y1, y2, y2, y1, y1], 'color', wincolors(w, :)); hold on;
+        end
+        fprintf('\n%d: %s\n', i, this.db.images(i).path);
+        disp('Press any key to continue. Ctrl + c to exit');
+        pause; close;
+      end
     end
     
 end
