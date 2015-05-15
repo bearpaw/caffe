@@ -410,7 +410,7 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
     // (i.e., not given a param_name) or explicitly given a name that we
     // haven't already seen.
     param_owners_.push_back(-1);
-    if (param_size) {
+    if (param_name.size()) {
       param_names_index_[param_name] = net_param_id;
     }
   } else {
@@ -470,7 +470,6 @@ Dtype Net<Dtype>::ForwardFromTo(int start, int end) {
   }
   for (int i = start; i <= end; ++i) {
     // LOG(ERROR) << "Forwarding " << layer_names_[i];
-    layers_[i]->Reshape(bottom_vecs_[i], top_vecs_[i]);
     Dtype layer_loss = layers_[i]->Forward(bottom_vecs_[i], top_vecs_[i]);
     loss += layer_loss;
     if (debug_info_) { ForwardDebugInfo(i); }
@@ -756,15 +755,15 @@ void Net<Dtype>::Update() {
       owner_diff = params_[param_owners_[i]]->mutable_cpu_diff();
       caffe_add(count, this_diff, owner_diff, owner_diff);
       break;
-#ifndef CPU_ONLY
     case Caffe::GPU:
+#ifndef CPU_ONLY
       this_diff = params_[i]->gpu_diff();
       owner_diff = params_[param_owners_[i]]->mutable_gpu_diff();
       caffe_gpu_add(count, this_diff, owner_diff, owner_diff);
-      break;
 #else
       NO_GPU;
 #endif
+      break;
     default:
       LOG(FATAL) << "Unknown caffe mode: " << Caffe::mode();
     }
