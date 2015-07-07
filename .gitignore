@@ -1,5 +1,7 @@
 ## General
 matlab/cache
+/home/wyang/Data/Code/iccv/caffe/matlab/filter_visualization/delta.mat
+/home/wyang/Data/Code/iccv/caffe/matlab/filter_visualization/weight_surgery_for_lsp_regression.m
 
 # Compiled Object files
 *.slo
