@@ -58,7 +58,7 @@ layer {
 }
 layer {
   name: "pool1"
-  type: "Pooling"
+  type: "DistancePooling"
   bottom: "conv1"
   top: "pool1"
   pooling_param {
@@ -92,7 +92,7 @@ layer {
 }
 layer {
   name: "pool2"
-  type: "Pooling"
+  type: "DistancePooling"
   bottom: "conv2"
   top: "pool2"
   pooling_param {

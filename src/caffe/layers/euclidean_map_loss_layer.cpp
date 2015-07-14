@@ -91,7 +91,7 @@ void EuclideanMapLossLayer<Dtype>::Reshape(
 
     	generate_gaussian_mask(gmask+btmoffset, out_h, out_w, round(x), round(y), sigma_);
 
-    	std::ofstream ofile;
+    /*	std::ofstream ofile;
 
 			// Write gmask for debug
       std::stringstream ss;
@@ -107,7 +107,7 @@ void EuclideanMapLossLayer<Dtype>::Reshape(
 				}
 				ofile << "\n";
 			}
-			ofile.close();
+			ofile.close();*/
   }
 
 

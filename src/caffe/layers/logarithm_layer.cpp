@@ -4,6 +4,12 @@
 #include "caffe/layer.hpp"
 #include "caffe/vision_layers.hpp"
 
+/**
+ * layer to compute the logarithm of the input data elementwise
+ * based on bnll_layer.cpp
+ * Wei Yang | April 13, 2015
+ * */
+
 namespace caffe {
 
 template <typename Dtype>

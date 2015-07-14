@@ -354,6 +354,7 @@ message LayerParameter {
   
   // bearpaw
   optional SumParameter sum_param = 50001;
+  optional EuclideanMapLossParameter euclidean_map_loss_param = 50002;
 }
 
 // Message that stores parameters used to apply transformation
@@ -607,6 +608,9 @@ message ImageDataParameter {
   // data.
   optional bool mirror = 6 [default = false];
   optional string root_folder = 12 [default = ""];
+  
+  // label number
+  optional uint32 label_num = 1001 [default = 1];
 }
 
 message InfogainLossParameter {
@@ -908,6 +912,18 @@ message SumParameter {
   optional uint32 mix_num = 3 [default = 1];
   // parents
   repeated uint32 parents = 4;
+}
+
+// Message that stores parameters used by EuclideanMapLossLayer
+message EuclideanMapLossParameter {
+	// variance (sigma) of the Gaussian kernel
+	optional float sigma = 1; 
+	// original image size
+	optional uint32 input_h = 2;
+	optional uint32 input_w = 3;
+	// which bottom stores the original coordinates 
+	optional uint32 label_index = 4;
+	optional uint32 pred_index = 5;
 }
 
 // Message that stores parameters used by SPPLayer

@@ -242,6 +242,35 @@ class ImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
 };
 
 /**
+ * @brief Provides data to the Net from image files with multiple labels.
+ *
+ * Wei YANG
+ * July 10, 2015
+ */
+template <typename Dtype>
+class ImageDataMultiLabelLayer : public BasePrefetchingDataLayer<Dtype> {
+ public:
+  explicit ImageDataMultiLabelLayer(const LayerParameter& param)
+      : BasePrefetchingDataLayer<Dtype>(param) {}
+  virtual ~ImageDataMultiLabelLayer();
+  virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline const char* type() const { return "ImageDataMultiLabel"; }
+  virtual inline int ExactNumBottomBlobs() const { return 0; }
+  virtual inline int ExactNumTopBlobs() const { return 2; }
+
+ protected:
+  shared_ptr<Caffe::RNG> prefetch_rng_;
+  virtual void ShuffleImages();
+  virtual void InternalThreadEntry();
+
+  vector<std::pair<std::string, vector<Dtype> > > lines_;
+  int lines_id_;
+  int label_num_;
+};
+
+/**
  * @brief Provides data to the Net from memory.
  *
  * TODO(dox): thorough documentation for Forward and proto params.

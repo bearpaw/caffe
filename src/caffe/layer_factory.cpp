@@ -65,6 +65,23 @@ shared_ptr<Layer<Dtype> > GetPoolingLayer(const LayerParameter& param) {
 
 REGISTER_LAYER_CREATOR(Pooling, GetPoolingLayer);
 
+
+// Get distance pooling layer according to engine.
+template <typename Dtype>
+shared_ptr<Layer<Dtype> > GetDistancePoolingLayer(const LayerParameter& param) {
+  PoolingParameter_Engine engine = param.pooling_param().engine();
+  if (engine == PoolingParameter_Engine_DEFAULT) {
+    engine = PoolingParameter_Engine_CAFFE;
+  }
+  if (engine == PoolingParameter_Engine_CAFFE) {
+    return shared_ptr<Layer<Dtype> >(new DistancePoolingLayer<Dtype>(param));
+  } else {
+    LOG(FATAL) << "Layer " << param.name() << " has unknown engine.";
+  }
+}
+
+REGISTER_LAYER_CREATOR(DistancePooling, GetDistancePoolingLayer);
+
 // Get relu layer according to engine.
 template <typename Dtype>
 shared_ptr<Layer<Dtype> > GetReLULayer(const LayerParameter& param) {
