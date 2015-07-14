@@ -1,0 +1,11 @@
+/home/wyang/Data/dataset/LSP/images/im0001.jpg 1
+/home/wyang/Data/dataset/LSP/images/im0002.jpg 1
+/home/wyang/Data/dataset/LSP/images/im0003.jpg 3
+/home/wyang/Data/dataset/LSP/images/im0004.jpg 1
+/home/wyang/Data/dataset/LSP/images/im0005.jpg 3
+/home/wyang/Data/dataset/LSP/images/im0006.jpg 1
+/home/wyang/Data/dataset/LSP/images/im0007.jpg 1
+/home/wyang/Data/dataset/LSP/images/im0008.jpg 2
+/home/wyang/Data/dataset/LSP/images/im0009.jpg 3
+/home/wyang/Data/dataset/LSP/images/im0010.jpg 3
+/home/wyang/Data/dataset/LSP/images/im0011.jpg 2
