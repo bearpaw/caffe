@@ -1,0 +1,5 @@
+/home/wyang/Data/dataset/LSP/images/im0001.jpg 1
+/home/wyang/Data/dataset/LSP/images/im0002.jpg 2
+/home/wyang/Data/dataset/LSP/images/im0003.jpg 3
+/home/wyang/Data/dataset/LSP/images/im0004.jpg 4
+/home/wyang/Data/dataset/LSP/images/im0004.jpg 0
