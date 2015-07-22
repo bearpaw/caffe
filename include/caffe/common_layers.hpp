@@ -308,6 +308,105 @@ class IdprLayer : public Layer<Dtype> {
 
 
 /**
+ * @brief Computes the IDPR map
+ */
+template <typename Dtype>
+class MessagePassingLayer : public Layer<Dtype> {
+ public:
+  explicit MessagePassingLayer(const LayerParameter& param)
+      : Layer<Dtype>(param) {}
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline const char* type() const { return "MessagePassing"; }
+
+ protected:
+  /**
+   * @param bottom input Blob vector (length 2+)
+   *   -# @f$ (N \times C \times H \times W) @f$
+   *      the inputs @f$ x_1 @f$
+   *   -# @f$ (N \times C \times H \times W) @f$
+   *      the inputs @f$ x_2 @f$
+   *   -# ...
+   *   - K @f$ (N \times C \times H \times W) @f$
+   *      the inputs @f$ x_K @f$
+   * @param top output Blob vector (length 1)
+   *   -# @f$ (KN \times C \times H \times W) @f$ if axis == 0, or
+   *      @f$ (N \times KC \times H \times W) @f$ if axis == 1:
+   *      the concatenated output @f$
+   *        y = [\begin{array}{cccc} x_1 & x_2 & ... & x_K \end{array}]
+   *      @f$
+   */
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+//  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+//      const vector<Blob<Dtype>*>& top);
+
+  /**
+   * @brief Computes the error gradient w.r.t. the concatenate inputs.
+   *
+   * @param top output Blob vector (length 1), providing the error gradient with
+   *        respect to the outputs
+   *   -# @f$ (KN \times C \times H \times W) @f$ if axis == 0, or
+   *      @f$ (N \times KC \times H \times W) @f$ if axis == 1:
+   *      containing error gradients @f$ \frac{\partial E}{\partial y} @f$
+   *      with respect to concatenated outputs @f$ y @f$
+   * @param propagate_down see Layer::Backward.
+   * @param bottom input Blob vector (length K), into which the top gradient
+   *        @f$ \frac{\partial E}{\partial y} @f$ is deconcatenated back to the
+   *        inputs @f$
+   *        \left[ \begin{array}{cccc}
+   *          \frac{\partial E}{\partial x_1} &
+   *          \frac{\partial E}{\partial x_2} &
+   *          ... &
+   *          \frac{\partial E}{\partial x_K}
+   *        \end{array} \right] =
+   *        \frac{\partial E}{\partial y}
+   *        @f$
+   */
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+//  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+//      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  int query_target_id(int selfid, int nbid);
+  // Distance Transform
+  void dt1d(const Dtype *src, Dtype *dst, int *ptr, int step, int len,
+          Dtype a_c, Dtype b_c, Dtype a_p, Dtype b_p, Dtype dshift_c, Dtype dshift_p, int dlen) ;
+
+  void distance_transform(const Dtype* vals, int sizx, int sizy,
+                          const Dtype* defw_c, const Dtype* defw_p,
+                          Dtype* mean_c, Dtype* var_c,
+                          Dtype* mean_p, Dtype* var_p,
+                          int32_t lenx, int32_t leny,
+                          Dtype *M, int32_t *Ix, int32_t *Iy
+                          ) ;
+
+  int         mix_num_;
+  string      source_;
+  vector<int> pa_;
+  int					child_;
+  Vec3DMat    global_IDs;
+  Vec3DMat    idpr_global_ids;
+
+  vector<vector <int> >  nbh_IDs;
+  vector<vector <int> >  target_IDs;
+
+  vector<std::pair<Dtype, Dtype> > meanvals_;
+
+	Blob<Dtype> dtvals_;
+
+  /**
+   * Compute global_IDs, nbh_IDs, target_IDs
+   */
+  void get_IDs() ;
+};
+
+
+
+/**
  * @brief Compute elementwise operations, such as product and sum,
  *        along multiple input Blobs.
  *
