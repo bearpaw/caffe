@@ -24,8 +24,8 @@ static inline Dtype square(Dtype x) { return x*x; }
 template <typename Dtype>
 void MessagePassingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
-/*	CHECK_EQ(top.size(), 4)
-	      << "There should be 4 tops for this layer (M, Ix, Iy, maxscore) instead of " << top.size();*/
+	CHECK_EQ(top.size(), 1)
+	      << "There should be only 1 tops for this layer";
   const MessagePassingParameter& params = this->layer_param_.message_passing_param();
   // read number of mixtures
   mix_num_ = params.mix_num();
@@ -88,15 +88,15 @@ void MessagePassingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   caffe_set(max_idx_.count(), -1, mask);
 
   //---------- max dt score map
-  top[1]->Reshape(num, 1, height, width);
-  caffe_set(top[1]->count(), Dtype(-10000), top[1]->mutable_cpu_data());
+  max_score_.Reshape(num, 1, height, width);
+  caffe_set(max_score_.count(), Dtype(-10000), max_score_.mutable_cpu_data());
 
   //---------- Iy
-  top[2]->Reshape(num, 1, height, width);
-  caffe_set(top[2]->count(), Dtype(0), top[2]->mutable_cpu_data());
+  max_Iy_.Reshape(num, 1, height, width);
+  caffe_set(max_Iy_.count(), Dtype(0), max_Iy_.mutable_cpu_data());
   //---------- Ix
-  top[3]->Reshape(num, 1, height, width);
-  caffe_set(top[3]->count(), Dtype(0), top[3]->mutable_cpu_data());
+  max_Ix_.Reshape(num, 1, height, width);
+  caffe_set(max_Ix_.count(), Dtype(0), max_Ix_.mutable_cpu_data());
 }
 
 template <typename Dtype>
@@ -117,9 +117,9 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   Dtype*        full_Ix_data = Ix_.mutable_cpu_data();  // Ix
   Dtype*        full_Iy_data = Iy_.mutable_cpu_data();  // Iy
   // get output maps
-  Dtype* 				score_data = top[1]->mutable_cpu_data(); // max score
-  Dtype* 				Ix_data = top[3]->mutable_cpu_data(); // max Ix
-  Dtype* 				Iy_data = top[2]->mutable_cpu_data(); // max Iy
+  Dtype* 				score_data = max_score_.mutable_cpu_data(); // max score
+  Dtype* 				Ix_data = max_Ix_.mutable_cpu_data(); // max Ix
+  Dtype* 				Iy_data = max_Iy_.mutable_cpu_data(); // max Iy
 
   int*					mask = max_idx_.mutable_cpu_data(); //maxscore mask
   const Dtype* 	weight = this->blobs_[0]->cpu_data();
@@ -150,7 +150,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   outstream.clear();
   for (int n = 0; n < num; ++n) {
   	const Dtype* 	app_map_offset = app_map + bottom[0]->offset(n, child_-1);
-  	Dtype* 				score_data_offset = score_data + top[1]->offset(n);
+  	Dtype* 				score_data_offset = score_data + max_score_.offset(n);
 
 		for (int mc = 0; mc < mix_num_; ++mc) {
 			for (int mp = 0; mp < mix_num_; ++mp) {
@@ -208,8 +208,8 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 		for (int h = 0; h < height; ++h) {
 			for (int w = 0; w < width; ++w) {
 				int* mask_offset = mask +max_idx_.offset(n);
-				Dtype* Ix_data_offset = Ix_data+top[3]->offset(n);
-				Dtype* Iy_data_offset = Iy_data+top[2]->offset(n);
+				Dtype* Ix_data_offset = Ix_data+max_Ix_.offset(n);
+				Dtype* Iy_data_offset = Iy_data+max_Iy_.offset(n);
 
 				for (int c = 0; c < score_.channels(); ++c) {
 					if ( score_.data_at(n, c, h, w) > score_data_offset[h*width + w]) {
@@ -227,7 +227,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
 		// ---- parts(par).score = parts(par).score + msg;
   	Dtype* 	par_app_map_offset = top[0]->mutable_cpu_data() + top[0]->offset(n, parent_-1);
-  	LOG(INFO) << "score shape: " << top[1]->shape_string();
+  	LOG(INFO) << "score shape: " << max_score_.shape_string();
   	LOG(INFO) << "par app shape: " << bottom[0]->shape_string();
   	caffe_axpy(height*width, Dtype(1), score_data_offset, par_app_map_offset);
   } // end n

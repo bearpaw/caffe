@@ -401,6 +401,9 @@ class MessagePassingLayer : public Layer<Dtype> {
   Blob<Dtype>	score_;
   Blob<Dtype> Ix_;
   Blob<Dtype> Iy_;
+  Blob<Dtype>	max_score_;
+  Blob<Dtype> max_Ix_;
+  Blob<Dtype> max_Iy_;
 
   Blob<int> max_idx_;
 
