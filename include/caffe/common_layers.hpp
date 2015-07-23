@@ -396,7 +396,13 @@ class MessagePassingLayer : public Layer<Dtype> {
 
   vector<std::pair<Dtype, Dtype> > meanvals_;
 
-	Blob<Dtype> dtvals_;
+  // for dt
+  // Note that Ix, Iy here equals (Iy, Ix) in matlab
+  Blob<Dtype>	score_;
+  Blob<Dtype> Ix_;
+  Blob<Dtype> Iy_;
+
+  Blob<int> max_idx_;
 
   /**
    * Compute global_IDs, nbh_IDs, target_IDs
