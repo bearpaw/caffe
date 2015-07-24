@@ -43,11 +43,7 @@ void SumLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 void SumLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {  
-  const Dtype*  bottom_data = bottom[0]->cpu_data();
   Dtype*        top_data = top[0]->mutable_cpu_data();
-
-  // bottom statistics
-  int bottom_channels = bottom[0]->channels(); 
 
   // top statistics
   int top_num = top[0]->num();
@@ -58,12 +54,12 @@ void SumLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
   // Sum bottom maps
   caffe_set(top_count, Dtype(0), top_data);
-  int bottom_offset;
 
   for (int n = 0; n < top_num; ++n) {
     for (int c = 0; c < top_channels; ++c) {
       vector<int> global_ids_vec = global_IDs[c][0]->vectorize();
-      
+
+      // ---- global_ids_vec stores all the bottom channels should be summed together
       for (int nbhid = 1; nbhid < global_IDs[c].size(); ++nbhid) { // number of neighbor
         vector<int> tmp =  global_IDs[c][nbhid]->vectorize();
         global_ids_vec.insert(global_ids_vec.end(), tmp.begin(), tmp.end());
@@ -72,62 +68,50 @@ void SumLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       for (int vid = 0; vid < global_ids_vec.size(); ++vid) {
         for (int h = 0; h < top_height; ++h) {
           for (int w = 0; w < top_width; ++w) {
-            bottom_offset = (((n*bottom_channels + global_ids_vec[vid])*top_height + h)*top_width + w);
-            int top_offset = (((n*top_channels + c)*top_height + h)*top_width + w);
-            *(top_data + top_offset) += *(bottom_data + bottom_offset);
+            *(top_data + top[0]->offset(n, c, h, w)) += bottom[0]->data_at(n, global_ids_vec[vid], h, w);
           } // end w
         } // end h
       } // end vid
-    } // end c 
+
+    } // end c
   } // end of sum bottom maps
 }
 
 template <typename Dtype>
 void SumLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
-  const Dtype* top_diff = top[0]->cpu_diff();
+	Dtype*        bottom_diff = bottom[0]->mutable_cpu_diff();
+	caffe_set(bottom[0]->count(), Dtype(0), bottom_diff);
 
+	// top statistics
+	int top_num = top[0]->num();
+	int top_channels = top[0]->channels();
+	int top_height = top[0]->height();
+	int top_width = top[0]->width();
 
-  // bottom statistics
-  int bottom_channels = bottom[0]->channels(); 
+	for (int n = 0; n < top_num; ++n) {
+		for (int c = 0; c < top_channels; ++c) {
+			vector<int> global_ids_vec = global_IDs[c][0]->vectorize();
 
-  // top statistics
-  int top_num = top[0]->num();
-  int top_channels = top[0]->channels(); 
-  int top_height = top[0]->height(); 
-  int top_width = top[0]->width(); 
-  int top_count = top[0]->count();
+			// ---- global_ids_vec stores all the bottom channels should be summed together
+			// ! Note: no overlap in global_ids_vec (all different). BP is easy
+			for (int nbhid = 1; nbhid < global_IDs[c].size(); ++nbhid) { // number of neighbor
+				vector<int> tmp =  global_IDs[c][nbhid]->vectorize();
+				global_ids_vec.insert(global_ids_vec.end(), tmp.begin(), tmp.end());
+			} // end nbhid
 
-  for (int i = 0; i < bottom.size(); ++i) {
-    if (propagate_down[i]) {
-      Dtype* bottom_diff = bottom[i]->mutable_cpu_diff();
+			for (int vid = 0; vid < global_ids_vec.size(); ++vid) {
+				for (int h = 0; h < top_height; ++h) {
+					for (int w = 0; w < top_width; ++w) {
+						if (propagate_down[global_ids_vec[vid]]) {
+							*(bottom_diff + bottom[0]->offset(n, global_ids_vec[vid], h, w)) += top[0]->diff_at(n, c, h, w);
+						}
+					} // end w
+				} // end h
+			} // end vid
 
-      caffe_set(top_count, Dtype(0), bottom_diff);
-      int bottom_offset;
-
-      for (int n = 0; n < top_num; ++n) {
-        for (int c = 0; c < top_channels; ++c) {
-          vector<int> global_ids_vec = global_IDs[c][0]->vectorize();
-          
-          for (int nbhid = 1; nbhid < global_IDs[c].size(); ++nbhid) { // number of neighbor
-            vector<int> tmp =  global_IDs[c][nbhid]->vectorize();
-            global_ids_vec.insert(global_ids_vec.end(), tmp.begin(), tmp.end());
-          } // end nbhid
-
-          for (int vid = 0; vid < global_ids_vec.size(); ++vid) {
-            for (int h = 0; h < top_height; ++h) {
-              for (int w = 0; w < top_width; ++w) {
-                bottom_offset = (((n*bottom_channels + global_ids_vec[vid])*top_height + h)*top_width + w);
-                int top_offset = (((n*top_channels + c)*top_height + h)*top_width + w);
-                *(bottom_diff + bottom_offset) = *(top_diff + top_offset);
-              } // end w
-            } // end h
-          } // end vid
-        } // end c 
-      } // end of sum bottom maps
-      
-    }
-  }
+		} // end c
+	} // end of sum bottom maps
 }
 
 template <typename Dtype>

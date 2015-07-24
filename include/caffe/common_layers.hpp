@@ -300,6 +300,7 @@ class IdprLayer : public Layer<Dtype> {
   vector<vector <int> >  nbh_IDs; 
   vector<vector <int> >  target_IDs; 
 
+  Blob<Dtype> normfactor;
   /**
    * Compute global_IDs, nbh_IDs, target_IDs
    */

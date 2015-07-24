@@ -1,7 +1,7 @@
 name: "LeNet"
 layer {
   name: "mnist"
-  type: "ImageDataMultiLabel"
+  type: "Data"
   top: "data"
   top: "label"
   include {
@@ -9,22 +9,16 @@ layer {
   }
   transform_param {
     scale: 0.00390625
-    mean_value: 128
-    mean_value: 128
-    mean_value: 128
   }
-  image_data_param {
-    source: "train.txt"
-    batch_size: 11
-    new_height: 220
-    new_width: 220
-    label_num: 2
+  data_param {
+    source: "examples/mnist/mnist_train_lmdb"
+    batch_size: 1
+    backend: LMDB
   }
 }
-
 layer {
   name: "mnist"
-  type: "ImageDataMultiLabel"
+  type: "Data"
   top: "data"
   top: "label"
   include {
@@ -32,20 +26,13 @@ layer {
   }
   transform_param {
     scale: 0.00390625
-    mean_value: 128
-    mean_value: 128
-    mean_value: 128
   }
-  image_data_param {
-    source: "train.txt"
-    batch_size: 11
-    new_height: 220
-    new_width: 220
-    label_num: 2
+  data_param {
+    source: "examples/mnist/mnist_test_lmdb"
+    batch_size: 1
+    backend: LMDB
   }
 }
-
-# -------------  convolutional layers  ------------- #
 layer {
   name: "conv1"
   type: "Convolution"
@@ -71,7 +58,7 @@ layer {
 }
 layer {
   name: "pool1"
-  type: "Pooling"
+  type: "DistancePooling"
   bottom: "conv1"
   top: "pool1"
   pooling_param {
@@ -105,7 +92,7 @@ layer {
 }
 layer {
   name: "pool2"
-  type: "Pooling"
+  type: "DistancePooling"
   bottom: "conv2"
   top: "pool2"
   pooling_param {
@@ -153,27 +140,12 @@ layer {
     lr_mult: 2
   }
   inner_product_param {
-    num_output: 2
+    num_output: 10
     weight_filler {
       type: "xavier"
     }
     bias_filler {
       type: "constant"
     }
-  }
-}
-
-layer {
-  name: "loss"
-  type: "EuclideanMapLoss"
-  bottom: "ip2"
-  bottom: "label"
-  top: "loss"
-  euclidean_map_loss_param {
-    sigma: 1
-    input_h: 220
-    input_w: 220
-    label_index: 1
-    pred_index: 0
   }
 }

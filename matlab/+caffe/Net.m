@@ -89,6 +89,7 @@ classdef Net < handle
     end
     function res = forward(self, input_data)
       CHECK(iscell(input_data), 'input_data must be a cell array');
+      fprintf('input_data: %d | self.inputs %d\n', length(input_data), length(self.inputs));
       CHECK(length(input_data) == length(self.inputs), ...
         'input data cell length must match input blob number');
       % copy data to input blobs
