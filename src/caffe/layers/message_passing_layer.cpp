@@ -293,7 +293,7 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 			}
 		}
 
-		for (int mc = 0; mc < mix_num_; ++mc) {
+		/*for (int mc = 0; mc < mix_num_; ++mc) {
 			for (int mp = 0; mp < mix_num_; ++mp) {
 				int mid_diff_idx = mc*mix_num_ + mp;
 				int idpr_idx = (ptarget_-1)*mix_num_+mc;
@@ -348,7 +348,7 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 					}
 				}
 			} // end MP
-		} // end MC
+		} // end MC*/
   }
 
 

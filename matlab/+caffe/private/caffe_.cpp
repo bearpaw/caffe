@@ -246,6 +246,14 @@ static void solver_step(MEX_ARGS) {
   solver->Step(iters);
 }
 
+// Usage: caffe_('solver_update', hSolver)
+static void solver_update(MEX_ARGS) {
+  mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
+      "Usage: caffe_('solver_update', hSolver)");
+  Solver<float>* solver = handle_to_ptr<Solver<float> >(prhs[0]);
+  solver->ApplyUpdate();
+}
+
 // Usage: caffe_('get_net', model_file, phase_name)
 static void get_net(MEX_ARGS) {
   mxCHECK(nrhs == 2 && mxIsChar(prhs[0]) && mxIsChar(prhs[1]),
@@ -493,6 +501,7 @@ static handler_registry handlers[] = {
   { "solver_get_iter",    solver_get_iter },
   { "solver_restore",     solver_restore  },
   { "solver_solve",       solver_solve    },
+  { "solver_update",       solver_update    },
   { "solver_step",        solver_step     },
   { "get_net",            get_net         },
   { "net_get_attr",       net_get_attr    },
