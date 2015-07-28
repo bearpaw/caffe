@@ -15,7 +15,7 @@
 
 
 #include "caffe/util/C3dmat.hpp"
-# define Vec3DMat   vector< vector<platero::C3dmat<int>* > >
+#define Vec3DMat   vector< vector<platero::C3dmat<int>* > >
 
 namespace caffe {
 
@@ -389,8 +389,15 @@ class MessagePassingLayer : public Layer<Dtype> {
   string      source_;
   vector<int> pa_;
   int					child_;
+  int					parent_;
   Vec3DMat    global_IDs;
   Vec3DMat    idpr_global_ids;
+
+  // compute corresponding idpr map index
+  int					cbid_;
+  int					pbid_;
+  int 				ptarget_;
+  int 				ctarget_;
 
   vector<vector <int> >  nbh_IDs;
   vector<vector <int> >  target_IDs;
@@ -406,11 +413,12 @@ class MessagePassingLayer : public Layer<Dtype> {
   Blob<Dtype> max_Ix_;
   Blob<Dtype> max_Iy_;
 
-  Blob<int> max_idx_;
+  // for BP
+  Blob<int> 	max_idx_;		// store max deformation score index (channel)
+  Blob<Dtype>	mid_diff_;	// store diff for (app_map + def_map)
 
-  /**
-   * Compute global_IDs, nbh_IDs, target_IDs
-   */
+
+  // Compute global_IDs, nbh_IDs, target_IDs
   void get_IDs() ;
 };
 

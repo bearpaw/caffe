@@ -41,9 +41,16 @@ void IdprLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       channels += mix_num_;
     }
   }
-
   top[0]->Reshape(num, channels, height, width);
-  normfactor.Reshape(1, 1, height, width);
+
+  // norm factor
+  int normcnt = 0;
+	for (int p = 0; p < idpr_global_ids.size(); ++p) { // for each part
+		normcnt += idpr_global_ids[p].size();
+	}
+  normfactor.Reshape(num, normcnt, height, width);
+	caffe_set(normfactor.count(), Dtype(0), normfactor.mutable_cpu_data());
+  //LOG(INFO) << "reshape norm cnt: " << normcnt;
 }
 
 template <typename Dtype>
@@ -56,11 +63,16 @@ void IdprLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   int top_height = top[0]->height(); 
   int top_width = top[0]->width(); 
   int top_count = top[0]->count();
+  int map_size = top_width*top_height;
+
+	Dtype* normfactor_ = normfactor.mutable_cpu_data();
 
   // compute IDPR maps
   caffe_set(top_count, Dtype(0), top_data);
 
+
   for (int n = 0; n < top_num; ++n) {
+    int normcnt = 0;
     int  tmapid = 0;
     for (int p = 0; p < idpr_global_ids.size(); ++p) { // for each part
       for (int s = 0; s < idpr_global_ids[p].size(); ++s) { // for each neighbor
@@ -72,32 +84,31 @@ void IdprLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
               // print the m-th row of each dimension
               int bmapid = idpr_mix->at(m, c, d);
 
-              // ----------------------------------------
-              // sum a map
-              for (int h = 0; h < top_height; ++h) {
-                for (int w = 0; w < top_width; ++w) {
-                   *(top_data + top[0]->offset(n, tmapid, h, w)) += bottom[0]->data_at(n, bmapid, h, w);
-                } // end w
-              } // end h
-              // ----------------------------------------
+              // -------sum a map
+            	caffe_axpy (map_size,
+            			Dtype(1),
+            			bottom[0]->cpu_data()+bottom[0]->offset(n, bmapid),
+            			top_data + top[0]->offset(n, tmapid));
 
             } // end col
           } // end dim
           tmapid++;
         } // end mix
 
-        // Normalize the summed IDPR map
-        for (int h = 0; h < top_height; ++h) {
-          for (int w = 0; w < top_width; ++w) {
-            Dtype normfactor = 0;
-            for (int tid = tmapid - 1; tid >= tmapid - mix_num_; --tid) {
-              normfactor += top[0]->data_at(n, tid, h, w);
-            }
-            for (int tid = tmapid - 1; tid >= tmapid - mix_num_; --tid) {
-              *(top_data + top[0]->offset(n, tid, h, w)) = top[0]->data_at(n, tid, h, w) / normfactor;
-            }
-          } // end w
-        } // end h
+				// compute the normalization term
+        normcnt ++;
+				for (int h = 0; h < top_height; ++h) {
+					for (int w = 0; w < top_width; ++w) {
+						for (int tid = tmapid - 1; tid >= tmapid - mix_num_; --tid) {
+							*(normfactor_+normfactor.offset(n, normcnt, h, w)) += top[0]->data_at(n, tid, h, w);
+						}
+					} // end w
+				} // end h
+
+				// Normalize the summed IDPR map (mixture_num of channels)
+				for (int tid = tmapid - 1; tid >= tmapid - mix_num_; --tid) {
+					caffe_div(map_size, top_data + top[0]->offset(n, tid), normfactor_+normfactor.offset(n, normcnt), top_data + top[0]->offset(n, tid));
+				}
 
       } // end neighbor
     } // end parts
@@ -107,59 +118,51 @@ void IdprLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 void IdprLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
-  Dtype*        bottom_diff = bottom[0]->mutable_cpu_diff();
-	caffe_set(bottom[0]->count(), Dtype(0), bottom_diff);
 
-	// top statistics
-	int top_num = top[0]->num();
-	int top_height = top[0]->height();
-	int top_width = top[0]->width();
-	int top_count = top[0]->count();
+	  // top statistics
+	  int top_num = top[0]->num();
+	  int top_height = top[0]->height();
+	  int top_width = top[0]->width();
+	  int map_size = top_width*top_height;
 
-	Dtype* normfactor_ = normfactor.mutable_cpu_data();
+		Dtype* normfactor_ = normfactor.mutable_cpu_data();
 
-	// compute IDPR maps
-	for (int n = 0; n < top_num; ++n) {
-		int  tmapid = 0;
-		for (int p = 0; p < idpr_global_ids.size(); ++p) { // for each part
-			for (int s = 0; s < idpr_global_ids[p].size(); ++s) { // for each neighbor
-				platero::C3dmat<int>* idpr_mix = idpr_global_ids[p][s];
+	  // compute IDPR maps
+	  caffe_set(bottom[0]->count(), Dtype(0), bottom[0]->mutable_cpu_diff());
+		Dtype*        bottom_diff = bottom[0]->mutable_cpu_diff();
+		const Dtype*        top_diff = top[0]->cpu_diff();
 
-				// Normalize the summed IDPR map
-				caffe_set(normfactor.count(), Dtype(0), normfactor_);
+	  for (int n = 0; n < top_num; ++n) {
+	    int  tmapid = 0;
+	    int normcnt = 0;
+	    for (int p = 0; p < idpr_global_ids.size(); ++p) { // for each part
+	      for (int s = 0; s < idpr_global_ids[p].size(); ++s) { // for each neighbor
+	        platero::C3dmat<int>* idpr_mix = idpr_global_ids[p][s];
+	        normcnt++;
 
-				for (int h = 0; h < top_height; ++h) {
-					for (int w = 0; w < top_width; ++w) {
-						for (int tid = tmapid - 1; tid >= tmapid - mix_num_; --tid) {
-							*(normfactor_+normfactor.offset(0, 0, h, w)) += top[0]->data_at(n, tid, h, w);
-						}
-					} // end w
-				} // end h
+	        for (int m = 0; m < mix_num_; ++m) {
+	          for (int d = 0; d < idpr_mix->get_dims(); ++d) {
+	            for (int c = 0; c < idpr_mix->get_cols(); ++c) {
+	              // print the m-th row of each dimension
+	              int bmapid = idpr_mix->at(m, c, d);
 
-				for (int m = 0; m < mix_num_; ++m) {
-					for (int d = 0; d < idpr_mix->get_dims(); ++d) {
-						for (int c = 0; c < idpr_mix->get_cols(); ++c) {
-							// print the m-th row of each dimension
-							int bmapid = idpr_mix->at(m, c, d);
-
-							// ----------------------------------------
-							// sum a map
-							for (int h = 0; h < top_height; ++h) {
-								for (int w = 0; w < top_width; ++w) {
-									*(bottom_diff + bottom[0]->offset(n, bmapid, h, w)) += top[0]->diff_at(n, tmapid, h, w)/normfactor.data_at(0, 0, h, w);
-								} // end w
-							} // end h
-							// ----------------------------------------
-
-						} // end col
-					} // end dim
-					tmapid++;
-				} // end mix
-
-
-			} // end neighbor
-		} // end parts
-	} // end sample
+	              // -------sum a diff map
+	            	caffe_axpy (map_size,
+	            			Dtype(1),
+	            			top_diff + top[0]->offset(n, tmapid),
+	            			bottom_diff+bottom[0]->offset(n, bmapid)
+	            			);
+	            	caffe_div(map_size,
+	            			bottom_diff + bottom[0]->offset(n, bmapid),
+	            			normfactor_+normfactor.offset(n, normcnt),
+	            			bottom_diff + bottom[0]->offset(n, bmapid));
+	            } // end col
+	          } // end dim
+	          tmapid++;
+	        } // end mix
+	      } // end neighbor
+	    } // end parts
+	  } // end sample
 }
 
 

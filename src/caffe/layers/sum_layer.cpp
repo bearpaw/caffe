@@ -51,6 +51,7 @@ void SumLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   int top_height = top[0]->height(); 
   int top_width = top[0]->width(); 
   int top_count = top[0]->count();
+  int map_size = top_width*top_height;
 
   // Sum bottom maps
   caffe_set(top_count, Dtype(0), top_data);
@@ -66,11 +67,10 @@ void SumLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       } // end nbhid
 
       for (int vid = 0; vid < global_ids_vec.size(); ++vid) {
-        for (int h = 0; h < top_height; ++h) {
-          for (int w = 0; w < top_width; ++w) {
-            *(top_data + top[0]->offset(n, c, h, w)) += bottom[0]->data_at(n, global_ids_vec[vid], h, w);
-          } // end w
-        } // end h
+      	caffe_axpy (map_size,
+      			Dtype(1),
+      			bottom[0]->cpu_data()+bottom[0]->offset(n, global_ids_vec[vid]),
+      			top_data + top[0]->offset(n, c));
       } // end vid
 
     } // end c
@@ -88,6 +88,7 @@ void SumLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 	int top_channels = top[0]->channels();
 	int top_height = top[0]->height();
 	int top_width = top[0]->width();
+  int map_size = top_width*top_height;
 
 	for (int n = 0; n < top_num; ++n) {
 		for (int c = 0; c < top_channels; ++c) {
@@ -101,13 +102,13 @@ void SumLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 			} // end nbhid
 
 			for (int vid = 0; vid < global_ids_vec.size(); ++vid) {
-				for (int h = 0; h < top_height; ++h) {
-					for (int w = 0; w < top_width; ++w) {
-						if (propagate_down[global_ids_vec[vid]]) {
-							*(bottom_diff + bottom[0]->offset(n, global_ids_vec[vid], h, w)) += top[0]->diff_at(n, c, h, w);
-						}
-					} // end w
-				} // end h
+				if (propagate_down[global_ids_vec[vid]]) {
+					// compute: *(bottom_diff + bottom[0]->offset(n, global_ids_vec[vid], h, w)) += top[0]->diff_at(n, c, h, w);
+	      	caffe_axpy (map_size,
+	      			Dtype(1),
+	      			top[0]->cpu_data() + top[0]->offset(n, c),
+	      			bottom_diff+bottom[0]->offset(n, global_ids_vec[vid]));
+				}
 			} // end vid
 
 		} // end c
