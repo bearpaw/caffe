@@ -415,7 +415,6 @@ class MessagePassingLayer : public Layer<Dtype> {
 
   // for BP
   Blob<int> 	max_idx_;		// store max deformation score index (channel)
-  Blob<Dtype>	mid_diff_;	// store diff for (app_map + def_map)
 
 
   // Compute global_IDs, nbh_IDs, target_IDs

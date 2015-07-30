@@ -471,6 +471,24 @@ static void reset(MEX_ARGS) {
   init_key = static_cast<double>(caffe_rng_rand());
 }
 
+// Usage: caffe_('net_size')
+static void net_size(MEX_ARGS) {
+  mxCHECK(nrhs == 0, "Usage: caffe_('net_size')");
+  mxArray* mx_vec = mxCreateDoubleMatrix(1, 1, mxREAL);
+  double* vec_mem_ptr = mxGetPr(mx_vec);
+  vec_mem_ptr[0] = nets_.size();
+  plhs[0] = mx_vec;
+}
+
+// Usage: caffe_('solver_size')
+static void solver_size(MEX_ARGS) {
+  mxCHECK(nrhs == 0, "Usage: caffe_('solver_size')");
+  mxArray* mx_vec = mxCreateDoubleMatrix(1, 1, mxREAL);
+  double* vec_mem_ptr = mxGetPr(mx_vec);
+  vec_mem_ptr[0] = solvers_.size();
+  plhs[0] = mx_vec;
+}
+
 // Usage: caffe_('read_mean', mean_proto_file)
 static void read_mean(MEX_ARGS) {
   mxCHECK(nrhs == 1 && mxIsChar(prhs[0]),
@@ -501,7 +519,7 @@ static handler_registry handlers[] = {
   { "solver_get_iter",    solver_get_iter },
   { "solver_restore",     solver_restore  },
   { "solver_solve",       solver_solve    },
-  { "solver_update",       solver_update    },
+  { "solver_update",      solver_update   }, // add by YANG Wei
   { "solver_step",        solver_step     },
   { "get_net",            get_net         },
   { "net_get_attr",       net_get_attr    },
@@ -524,6 +542,8 @@ static handler_registry handlers[] = {
   { "get_init_key",       get_init_key    },
   { "reset",              reset           },
   { "read_mean",          read_mean       },
+  { "net_size",           net_size        }, // add by YANG Wei 2015-07-30
+  { "solver_size",        solver_size     }, // add by YANG Wei 2015-07-30
   // The end.
   { "END",                NULL            },
 };

@@ -81,8 +81,12 @@ if ~exist(net_weights, 'file')
 end
 
 % Initialize a network
-net = caffe.Net(net_model, net_weights, phase);
+net1 = caffe.Net(net_model, net_weights, phase);
 
+netsize = caffe.net_size()
+
+net = caffe.get_net(0);
+net = caffe.Net(net);
 if nargin < 1
   % For demo purposes we will use the cat image
   fprintf('using caffe/examples/images/cat.jpg as input image\n');

@@ -9,7 +9,7 @@ train_labels = loadMNISTLabels('../../data/mnist/train-labels-idx1-ubyte');
 train_labels(train_labels==0) = 10; % Remap 0 to 10
 
 % solver params
-params.epoch = 11;
+params.epoch = 5;
 params.batch_size = 64;
 params.num = length(train_labels);
 params.numCases = length(unique(train_labels));
@@ -29,45 +29,46 @@ caffe.set_device(gpu_id);
 solver = caffe.Solver(solver_file);
 iter = 0;
 
-% if ~exist(weight)
-  for e = 1:params.epoch
-    train_idx = randperm(params.num);
-    disp('===================================');
-    fprintf('Epoch # %d\n', e);
-    for cur_idx = 1:params.batch_size:params.num-params.batch_size
-      range = train_idx(cur_idx:cur_idx+params.batch_size-1);
-      images = train_images(:, range);
-      labels = train_labels(range);
-      input_data = zeros(params.height, params.width, params.channel, params.batch_size, 'single');
+% Training model
+for e = 1:params.epoch
+  train_idx = randperm(params.num);
+  disp('===================================');
+  fprintf('Epoch # %d\n', e);
+  for cur_idx = 1:params.batch_size:params.num-params.batch_size
+    range = train_idx(cur_idx:cur_idx+params.batch_size-1);
+    images = train_images(:, range);
+    labels = train_labels(range);
+    input_data = zeros(params.height, params.width, params.channel, params.batch_size, 'single');
 
-      % prepare data
-      for ii = 1:params.batch_size
-        a = reshape(images(:, ii), [params.height, params.width]);
-        input_data(:, :, 1, ii) = reshape(images(:, ii), [params.height, params.width]);
-      end
-
-      % train
-      solver.net.forward({input_data}, false);
-      prob = solver.net.blobs('prob').get_data();
-
-      [loss, diff] = mysoftmaxloss(double(prob), labels);
-      res = solver.net.backward({diff});
-      res = res{1};
-      solver.update();
-
-      if mod(iter, params.display) == 0
-        fprintf('Iter %6d: Loss %.6f\n', iter,loss);
-      end
-      iter = iter + 1;
+    % prepare data
+    for ii = 1:params.batch_size
+      a = reshape(images(:, ii), [params.height, params.width]);
+      input_data(:, :, 1, ii) = reshape(images(:, ii), [params.height, params.width]);
     end
+
+    % train
+    solver.net.forward({input_data}, false);
+    prob = solver.net.blobs('prob').get_data();
+
+    [loss, diff] = mysoftmaxloss(double(prob), labels);
+    res = solver.net.backward({diff});
+    res = res{1};
+    solver.update();
+
+    if mod(iter, params.display) == 0
+      fprintf('Iter %6d: Loss %.6f\n', iter,loss);
+    end
+    iter = iter + 1;
   end
+end
+
+% Save model
 solver.net.save(weight);
-% end
 
 % =========================================================================
 % Testing
 % =========================================================================
-net = caffe.Net(model, weight, 'test'); % create net and load weights
+net = caffe.Net(model, weight, 'test'); % create testing net and load weights
 
 test_images = loadMNISTImages('../../data/mnist/t10k-images-idx3-ubyte');
 test_labels = loadMNISTLabels('../../data/mnist/t10k-labels-idx1-ubyte');

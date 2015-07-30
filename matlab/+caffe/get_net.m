@@ -4,7 +4,8 @@ function net = get_net(varargin)
 %   Construct a net from model_file, and load weights from weights_file
 %   phase_name can only be 'train' or 'test'
 
-CHECK(nargin == 2 || nargin == 3, ['usage: ' ...
+CHECK(nargin == 1 || nargin == 2 || nargin == 3, ['usage: ' ...
+  'net = get_net(net_index) or ' ...
   'net = get_net(model_file, phase_name) or ' ...
   'net = get_net(model_file, weights_file, phase_name)']);
 if nargin == 3
@@ -15,23 +16,26 @@ elseif nargin == 2
   model_file = varargin{1};
   phase_name = varargin{2};
 end
+if nargin == 1
+  net = caffe_('get_net', varargin{1});
+else
+  CHECK(ischar(model_file), 'model_file must be a string');
+  CHECK(ischar(phase_name), 'phase_name must be a string');
+  CHECK_FILE_EXIST(model_file);
+  CHECK(strcmp(phase_name, 'train') || strcmp(phase_name, 'test'), ...
+    sprintf('phase_name can only be %strain%s or %stest%s', ...
+    char(39), char(39), char(39), char(39)));
 
-CHECK(ischar(model_file), 'model_file must be a string');
-CHECK(ischar(phase_name), 'phase_name must be a string');
-CHECK_FILE_EXIST(model_file);
-CHECK(strcmp(phase_name, 'train') || strcmp(phase_name, 'test'), ...
-  sprintf('phase_name can only be %strain%s or %stest%s', ...
-  char(39), char(39), char(39), char(39)));
+  % construct caffe net from model_file
+  hNet = caffe_('get_net', model_file, phase_name);
+  net = caffe.Net(hNet);
 
-% construct caffe net from model_file
-hNet = caffe_('get_net', model_file, phase_name);
-net = caffe.Net(hNet);
-
-% load weights from weights_file
-if nargin == 3
-  CHECK(ischar(weights_file), 'weights_file must be a string');
-  CHECK_FILE_EXIST(weights_file);
-  net.copy_from(weights_file);
+  % load weights from weights_file
+  if nargin == 3
+    CHECK(ischar(weights_file), 'weights_file must be a string');
+    CHECK_FILE_EXIST(weights_file);
+    net.copy_from(weights_file);
+  end
 end
 
 end
