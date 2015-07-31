@@ -38,6 +38,8 @@ class Solver {
   }
   int iter() { return iter_; }
 
+  virtual void myfunc() = 0;
+
   // Make and apply the update value for the current iteration.
   virtual void ApplyUpdate() = 0;
 
@@ -78,7 +80,9 @@ class SGDSolver : public Solver<Dtype> {
 
   const vector<shared_ptr<Blob<Dtype> > >& history() { return history_; }
   virtual void ApplyUpdate();
-
+  virtual void myfunc() {
+  	ApplyUpdate();
+  }
  protected:
   void PreSolve();
   Dtype GetLearningRate();
