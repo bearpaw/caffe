@@ -13,16 +13,17 @@ train_labels(train_labels==0) = 10; % Remap 0 to 10
 
 % solver params
 params.epoch = 10;
-params.batch_size = 64;
+params.batch_size = 1;
+params.iter_size = 64;
 params.num = length(train_labels);
 params.numCases = length(unique(train_labels));
 params.channel = 1;
 params.height = 28;
 params.width = 28;
-params.display = 100;
+params.display = 6400;
  
-solver_file = '../../examples/mnist_matlab/lenet_solver.prototxt';
-model = '../../examples/mnist_matlab/lenet.prototxt';
+solver_file = '../../examples/mnist_matlab/lenet_solver_itersize.prototxt';
+model = '../../examples/mnist_matlab/lenet_itersize.prototxt';
 weight = '../../examples/mnist_matlab/lenet.caffemodel';
 gpu_id = 0;
 
@@ -38,6 +39,7 @@ for e = 1:params.epoch
   train_idx = randperm(params.num);
   disp('===================================');
   fprintf('Epoch # %d\n', e);
+  
   for cur_idx = 1:params.batch_size:params.num-params.batch_size
     range = train_idx(cur_idx:cur_idx+params.batch_size-1);
     images = train_images(:, range);
@@ -56,10 +58,13 @@ for e = 1:params.epoch
 
     [loss, diff] = mysoftmaxloss(double(prob), labels);
     accloss = accloss + loss;
-%     solver.net.reset_params(); % seems no use
     res = solver.net.backward({diff});
     res = res{1};
-    solver.update();
+    
+    if mod(iter, params.iter_size) == 0
+      solver.update();
+      solver.net.reset_params();
+    end
 
     if mod(iter, params.display) == 0
       fprintf('Iter %6d: Loss %.6f\n', iter, accloss/params.display);

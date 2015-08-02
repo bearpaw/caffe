@@ -251,7 +251,7 @@ static void solver_update(MEX_ARGS) {
   mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
       "Usage: caffe_('solver_update', hSolver)");
   Solver<float>* solver = handle_to_ptr<Solver<float> >(prhs[0]);
-  solver->ApplyUpdate();
+  solver->update_network();
 }
 
 // Usage: caffe_('get_net', model_file, phase_name)
@@ -299,6 +299,31 @@ static void net_get_attr(MEX_ARGS) {
   mxSetField(mx_net_attr, 0, "blob_names",
       str_vec_to_mx_strcell(net->blob_names()));
   plhs[0] = mx_net_attr;
+}
+
+// Usage: caffe_('net_forward', hNet)
+static void reset_params(MEX_ARGS) {
+	mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
+	      "Usage: caffe_('net_forward', hNet)");
+	Net<float>* net = handle_to_ptr<Net<float> >(prhs[0]);
+
+	for (int i = 0; i < net->params().size(); ++i) {
+		shared_ptr<Blob<float> > blob = net->params()[i];
+		switch (Caffe::mode()) {
+		case Caffe::CPU:
+			caffe_set(blob->count(), static_cast<float>(0),
+					blob->mutable_cpu_diff());
+			break;
+		case Caffe::GPU:
+#ifndef CPU_ONLY
+			caffe_gpu_set(blob->count(), static_cast<float>(0),
+					blob->mutable_gpu_diff());
+#else
+			NO_GPU;
+#endif
+			break;
+		}
+	}
 }
 
 // Usage: caffe_('net_forward', hNet)
@@ -544,6 +569,7 @@ static handler_registry handlers[] = {
   { "read_mean",          read_mean       },
   { "net_size",           net_size        }, // add by YANG Wei 2015-07-30
   { "solver_size",        solver_size     }, // add by YANG Wei 2015-07-30
+  { "reset_params",       reset_params    }, // add by YANG Wei 2015-07-31
   // The end.
   { "END",                NULL            },
 };

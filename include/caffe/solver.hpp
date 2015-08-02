@@ -37,13 +37,11 @@ class Solver {
     return test_nets_;
   }
   int iter() { return iter_; }
-
-  virtual void myfunc() = 0;
-
-  // Make and apply the update value for the current iteration.
-  virtual void ApplyUpdate() = 0;
+  virtual void update_network() = 0;
 
  protected:
+  // Make and apply the update value for the current iteration.
+  virtual void ApplyUpdate() = 0;
   // The Solver::Snapshot function implements the basic snapshotting utility
   // that stores the learned net. You should implement the SnapshotSolverState()
   // function that produces a SolverState protocol buffer that needs to be
@@ -79,13 +77,12 @@ class SGDSolver : public Solver<Dtype> {
       : Solver<Dtype>(param_file) { PreSolve(); }
 
   const vector<shared_ptr<Blob<Dtype> > >& history() { return history_; }
-  virtual void ApplyUpdate();
-  virtual void myfunc() {
-  	ApplyUpdate();
-  }
+  virtual void update_network() { ApplyUpdate(); ++this->iter_;}
+
  protected:
   void PreSolve();
   Dtype GetLearningRate();
+  virtual void ApplyUpdate();
   virtual void Normalize(int param_id);
   virtual void Regularize(int param_id);
   virtual void ComputeUpdateValue(int param_id, Dtype rate);

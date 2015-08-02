@@ -135,5 +135,8 @@ classdef Net < handle
       CHECK(ischar(weights_file), 'weights_file must be a string');
       caffe_('net_save', self.hNet_self, weights_file);
     end
+    function reset_params(self)
+      caffe_('reset_params', self.hNet_self);
+    end
   end
 end
