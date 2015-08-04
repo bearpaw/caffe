@@ -50,13 +50,13 @@ void IdprLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 	}
   normfactor.Reshape(num, normcnt, height, width);
 	caffe_set(normfactor.count(), Dtype(0), normfactor.mutable_cpu_data());
-  //LOG(INFO) << "reshape norm cnt: " << normcnt;
 }
 
 template <typename Dtype>
 void IdprLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   Dtype*        top_data = top[0]->mutable_cpu_data();
+  LOG(INFO) << "reshape norm cnt: " << normfactor.channels();
 
   // top statistics
   int top_num = top[0]->num();
@@ -96,7 +96,6 @@ void IdprLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
         } // end mix
 
 				// compute the normalization term
-        normcnt ++;
 				for (int h = 0; h < top_height; ++h) {
 					for (int w = 0; w < top_width; ++w) {
 						for (int tid = tmapid - 1; tid >= tmapid - mix_num_; --tid) {
@@ -109,7 +108,7 @@ void IdprLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 				for (int tid = tmapid - 1; tid >= tmapid - mix_num_; --tid) {
 					caffe_div(map_size, top_data + top[0]->offset(n, tid), normfactor_+normfactor.offset(n, normcnt), top_data + top[0]->offset(n, tid));
 				}
-
+				normcnt++;
       } // end neighbor
     } // end parts
   } // end sample
@@ -138,7 +137,6 @@ void IdprLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 	    for (int p = 0; p < idpr_global_ids.size(); ++p) { // for each part
 	      for (int s = 0; s < idpr_global_ids[p].size(); ++s) { // for each neighbor
 	        platero::C3dmat<int>* idpr_mix = idpr_global_ids[p][s];
-	        normcnt++;
 
 	        for (int m = 0; m < mix_num_; ++m) {
 	          for (int d = 0; d < idpr_mix->get_dims(); ++d) {
@@ -160,6 +158,8 @@ void IdprLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 	          } // end dim
 	          tmapid++;
 	        } // end mix
+
+        	normcnt ++;
 	      } // end neighbor
 	    } // end parts
 	  } // end sample

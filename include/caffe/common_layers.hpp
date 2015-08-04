@@ -295,7 +295,7 @@ class IdprLayer : public Layer<Dtype> {
   string      source_;
   vector<int> pa_;
   Vec3DMat    global_IDs; 
-  Vec3DMat   idpr_global_ids; 
+  Vec3DMat   	idpr_global_ids;
 
   vector<vector <int> >  nbh_IDs; 
   vector<vector <int> >  target_IDs; 
