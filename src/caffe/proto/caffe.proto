@@ -929,6 +929,8 @@ message MessagePassingParameter {
   optional uint32 child = 5;
   // weight filler  
   optional FillerParameter weight_filler = 6;
+  // pdefs filler  
+  optional FillerParameter pdefs_filler = 7;
 }
 
 // Message that stores parameters used by EuclideanMapLossLayer

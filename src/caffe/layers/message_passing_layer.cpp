@@ -52,14 +52,26 @@ void MessagePassingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 	get_IDs();
 	// Initialize and fill the weights
 	// Only four weights for quadratic form distance feature
-	this->blobs_.resize(1); // only weight no bias
-	vector<int> weight_shape(2);
-	weight_shape[0] = bottom[1]->channels();
-	weight_shape[1] = 4;
+	this->blobs_.resize(2); // only weight no bias
+	vector<int> weight_shape(4);
+	weight_shape[0] = 1;
+	weight_shape[1] = 1;
+	weight_shape[2] = bottom[1]->channels();
+	weight_shape[3] = 4;
 	this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
 	shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
 			this->layer_param_.message_passing_param().weight_filler()));
 	weight_filler->Fill(this->blobs_[0].get());
+
+	// set idpr map weight
+	CHECK_EQ(bottom[1]->channels()%mix_num_, 0)
+	      		<< "The number of idpr maps should be n times the mixture num.";
+	vector<int> pdefs_shape(1);
+	pdefs_shape[0] = bottom[1]->channels() / mix_num_;
+	this->blobs_[1].reset(new Blob<Dtype>(pdefs_shape));
+	shared_ptr<Filler<Dtype> > pdefs_filler(GetFiller<Dtype>(
+			this->layer_param_.message_passing_param().pdefs_filler()));
+	pdefs_filler->Fill(this->blobs_[1].get());
 }
 
 /**
@@ -107,6 +119,12 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 	int num = bottom[0]->num();
 	int height = bottom[0]->height();
 	int width = bottom[0]->width();
+	// tmp def map
+	Blob<Dtype>	tmp_def_map;
+	tmp_def_map.Reshape(1, 1, height, width);
+	caffe_set(tmp_def_map.count(), Dtype(0), tmp_def_map.mutable_cpu_data());
+	Dtype*			tmp_def_map_data = tmp_def_map.mutable_cpu_data();
+
 	// get input maps
 	const Dtype*  app_map = bottom[0]->cpu_data();
 	const Dtype*  def_map = bottom[1]->cpu_data();
@@ -121,6 +139,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
 	int*					mask = max_idx_.mutable_cpu_data(); //maxscore mask
 	const Dtype* 	defw = this->blobs_[0]->cpu_data();
+	const Dtype* 	pdefs = this->blobs_[1]->cpu_data();
 
 
 	cbid_ = std::find(nbh_IDs[child_-1].begin(), nbh_IDs[child_-1].end(), parent_) - nbh_IDs[child_-1].begin();
@@ -162,9 +181,11 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
 				// ----  current defmap
 				const Dtype* def_map_offset = def_map + bottom[1]->offset(n, (ptarget_-1)*mix_num_+mc);
+				caffe_copy(height*width, def_map_offset, tmp_def_map_data);
+				caffe_scal(height*width, pdefs[ptarget_-1], tmp_def_map_data);
 				//  ---- child.score + child.defmap{cbid}(:, :, mc)
 				caffe_copy(Ny*Nx, app_map_offset, cur_score_ptr);
-				caffe_axpy(Ny*Nx, Dtype(1), def_map_offset, cur_score_ptr);
+				caffe_axpy(Ny*Nx, Dtype(1), tmp_def_map_data, cur_score_ptr);
 
 				// ---- Transpose to column first (for distance transform)
 				for (int h = 0; h < height; ++h) {
@@ -174,9 +195,9 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 				}
 
 				// ---- deformation weight child->parent
-				const Dtype*	defw_c = defw + this->blobs_[0]->offset((ptarget_-1)*mix_num_+mc);
+				const Dtype*	defw_c = defw + this->blobs_[0]->offset(0, 0, (ptarget_-1)*mix_num_+mc);
 				// ---- deformation weight parent->child
-				const Dtype*	defw_p = defw + this->blobs_[0]->offset((ctarget_-1)*mix_num_+mp);
+				const Dtype*	defw_p = defw + this->blobs_[0]->offset(0, 0, (ctarget_-1)*mix_num_+mp);
 				// ---- child->parent var
 				Dtype var_c[2] = {1, 1};
 				// ---- parent->child var
@@ -367,9 +388,9 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 				caffe_axpy(height*width, Dtype(1), mid_diff+mid_diff_.offset(n, mc*mix_num_+mp), cur_idpr_diff);
 
 				// ---- deformation weight child->parent
-				Dtype*	defw_diff_c = defw_diff + this->blobs_[0]->offset((ptarget_-1)*mix_num_+mc);
+				Dtype*	defw_diff_c = defw_diff + this->blobs_[0]->offset(0,0,(ptarget_-1)*mix_num_+mc);
 				// ---- deformation weight parent->child
-				Dtype*	defw_diff_p = defw_diff + this->blobs_[0]->offset((ctarget_-1)*mix_num_+mp);
+				Dtype*	defw_diff_p = defw_diff + this->blobs_[0]->offset(0,0,(ctarget_-1)*mix_num_+mp);
 
 				// Note: -defw[0]*dx^2 - defw[1]*dx - defw[2]*dy^2 - defw[3]*dy
 				for (int h = 0; h < height; ++h) {
