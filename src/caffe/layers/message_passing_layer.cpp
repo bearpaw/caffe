@@ -24,8 +24,8 @@ static inline Dtype square(Dtype x) { return x*x; }
 template <typename Dtype>
 void MessagePassingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
-	CHECK_EQ(top.size(), 1)
-	      		<< "There should be only 1 tops for this layer";
+	CHECK_LE(top.size(), 3)
+	      		<< "There should be <= 3 tops for this layer";
 	const MessagePassingParameter& params = this->layer_param_.message_passing_param();
 	// read number of mixtures
 	mix_num_ = params.mix_num();
@@ -107,6 +107,16 @@ void MessagePassingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 	//---------- Ix
 	max_Ix_.Reshape(num, 1, height, width);
 	caffe_set(max_Ix_.count(), Dtype(0), max_Ix_.mutable_cpu_data());
+	//---------- top[0] dt score
+	top[0]->Reshape(num, bottom[0]->channels(), height, width);
+	caffe_copy(top[0]->count(), bottom[0]->cpu_data(), top[0]->mutable_cpu_data());
+	//---------- top[1] Ix
+	top[1]->Reshape(num, 1, height, width);
+	caffe_set(top[1]->count(), Dtype(0), top[1]->mutable_cpu_data());
+	//---------- top[2] Iy
+	top[2]->Reshape(num, 1, height, width);
+	caffe_set(top[2]->count(), Dtype(0), top[2]->mutable_cpu_data());
+
 }
 
 template <typename Dtype>
@@ -179,7 +189,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 				caffe_set(height*width, 0, tmp_Ix_data);
 				caffe_set(height*width, 0, tmp_Iy_data);
 
-				// ----  current defmap
+				// ----   child.defmap
 				const Dtype* def_map_offset = def_map + bottom[1]->offset(n, (ptarget_-1)*mix_num_+mc);
 				caffe_copy(height*width, def_map_offset, tmp_def_map_data);
 				caffe_scal(height*width, pdefs[ptarget_-1], tmp_def_map_data);
@@ -220,6 +230,15 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 						cur_Iy_ptr[h*width + w] = tmp_Iy_data[w*height + h];
 					}
 				}
+
+				// Compute: score0(:,:,mc,mp) = score0(:,:,mc,mp) + parent.pdw(pbid)*parent.defMap{pbid}(:,:,mp);
+				// ----  parent.defmap
+				def_map_offset = def_map + bottom[1]->offset(n, (ctarget_-1)*mix_num_+mp);
+				caffe_copy(height*width, def_map_offset, tmp_def_map_data);
+				caffe_scal(height*width, pdefs[ctarget_-1], tmp_def_map_data);
+				//  ---- child.score + child.defmap{cbid}(:, :, mc)
+				caffe_axpy(Ny*Nx, Dtype(1), tmp_def_map_data, cur_score_ptr);
+
 			} // end MP
 		} // end MC
 
@@ -249,6 +268,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 		Dtype* 	par_app_map_offset = top[0]->mutable_cpu_data() + top[0]->offset(n, parent_-1);
 		LOG(INFO) << "score shape: " << max_score_.shape_string();
 		LOG(INFO) << "par app shape: " << bottom[0]->shape_string();
+		LOG(INFO) << "top[0] shape: " << top[0]->shape_string();
 		caffe_axpy(height*width, Dtype(1), max_score_ptr_offset, par_app_map_offset);
 	} // end n
 
@@ -275,7 +295,9 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
 	LOG(INFO) << outstream.str();
 	 */
-
+	// save Ix, Iy
+	caffe_copy(max_Iy_.count(), max_Iy_.cpu_data(), top[1]->mutable_cpu_data());
+	caffe_copy(max_Ix_.count(), max_Ix_.cpu_data(), top[2]->mutable_cpu_data());
 	LOG(INFO) << "end forward";
 
 }
