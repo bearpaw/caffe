@@ -124,7 +124,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
 
 
-	LOG(INFO) << "Weight shape :" << this->blobs_[0]->shape_string();
+//	LOG(INFO) << "Weight shape :" << this->blobs_[0]->shape_string();
 	std::stringstream outstream;
 	int num = bottom[0]->num();
 	int height = bottom[0]->height();
@@ -266,9 +266,9 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
 		// ---- parts(par).score = parts(par).score + msg;
 		Dtype* 	par_app_map_offset = top[0]->mutable_cpu_data() + top[0]->offset(n, parent_-1);
-		LOG(INFO) << "score shape: " << max_score_.shape_string();
-		LOG(INFO) << "par app shape: " << bottom[0]->shape_string();
-		LOG(INFO) << "top[0] shape: " << top[0]->shape_string();
+//		LOG(INFO) << "score shape: " << max_score_.shape_string();
+//		LOG(INFO) << "par app shape: " << bottom[0]->shape_string();
+//		LOG(INFO) << "top[0] shape: " << top[0]->shape_string();
 		caffe_axpy(height*width, Dtype(1), max_score_ptr_offset, par_app_map_offset);
 	} // end n
 
@@ -298,7 +298,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 	// save Ix, Iy
 	caffe_copy(max_Iy_.count(), max_Iy_.cpu_data(), top[1]->mutable_cpu_data());
 	caffe_copy(max_Ix_.count(), max_Ix_.cpu_data(), top[2]->mutable_cpu_data());
-	LOG(INFO) << "end forward";
+//	LOG(INFO) << "end forward";
 
 }
 
@@ -306,7 +306,7 @@ template <typename Dtype>
 void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 		const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
 
-	LOG(INFO) << "Start BP" ;
+//	LOG(INFO) << "Start BP" ;
 
 
 	const int* mask = max_idx_.cpu_data();
