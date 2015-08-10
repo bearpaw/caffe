@@ -645,6 +645,9 @@ void MessagePassingLayer<Dtype>::distance_transform(const Dtype* vals, int sizx,
 			Ix[p] = Ix[p] + 1;
 		}
 	}
+	// ---- fix the memory leak bug (Wei Yang Aug 10, 2015)
+	delete [] tmpM;
+	delete [] tmpIy;
 }
 
 
