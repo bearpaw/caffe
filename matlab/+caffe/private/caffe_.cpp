@@ -301,7 +301,7 @@ static void net_get_attr(MEX_ARGS) {
   plhs[0] = mx_net_attr;
 }
 
-// Usage: caffe_('reset_params', hNet)
+// Usage: caffe_('net_forward', hNet)
 static void reset_params(MEX_ARGS) {
 	mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
 	      "Usage: caffe_('net_forward', hNet)");
