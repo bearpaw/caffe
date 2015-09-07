@@ -1,4 +1,4 @@
-function mnist_demo
+function mnist_demo_itersize
 % function mnist_demo
 addpath('../../matlab');
 addpath('../../examples/mnist_matlab/mnistHelper');

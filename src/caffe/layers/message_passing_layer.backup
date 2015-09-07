@@ -1,0 +1,530 @@
+#include <vector>
+#include <cfloat>
+
+#include "caffe/layer.hpp"
+#include "caffe/util/math_functions.hpp"
+#include "caffe/vision_layers.hpp"
+#include <math.h>
+#include <sys/types.h>
+#include <algorithm>
+#include <fstream>
+#include <sstream>
+
+# define Vec3DElem vector<platero::C3dmat<int>* > 
+# define C3DMAT platero::C3dmat<int>
+
+namespace caffe {
+
+#define INF 1E20
+
+template <typename Dtype>
+static inline Dtype square(Dtype x) { return x*x; }
+
+
+
+template <typename Dtype>
+__global__ void dt1d_gpu(const int nthreads,
+		const Dtype* src_data, Dtype *dst_data, int *ptr_data,
+		int *v_data, float *z_data,
+		int step, int len,
+		Dtype a_c, Dtype b_c, Dtype a_p, Dtype b_p,
+		Dtype dshift_c, Dtype dshift_p, int dlen, bool is_continuous){
+	CUDA_KERNEL_LOOP(index, nthreads) {
+		const Dtype*	src = NULL;
+		Dtype*				dst = NULL;
+		int*					ptr = NULL;
+		int*					v = v_data + index*len;
+		float*				z = z_data + index*len;
+
+		if (is_continuous) {
+			src = src_data + index*len;
+			dst = dst_data + index*dlen;
+			ptr = ptr_data + index*dlen;
+		} else {
+			src = src_data + index;
+			dst = dst_data + index;
+			ptr = ptr_data + index;
+		}
+
+		int k = 0;
+		int q = 0;
+		v[0] = 0;
+		z[0] = -INF;
+		z[1] = +INF;
+
+		for (q = 1; q <= len-1; q++) {
+			float s = ( (src[q*step] - src[v[k]*step])
+					- b_c * -(q - v[k]) + a_c * (q*q - v[k]*v[k])
+					- b_p * (q - v[k]) + a_p * (q*q - v[k]*v[k])
+					+ 2*a_c * (q-v[k])*(-dshift_c) + 2*a_p * (q-v[k])*(dshift_p) )
+		    																		/ ( 2*a_c*(q-v[k]) + 2*a_p*(q-v[k]) );
+			while (s <= z[k]) {
+				k--;
+				s = ( (src[q*step] - src[v[k]*step])
+						- b_c * -(q - v[k]) + a_c * (q*q - v[k]*v[k])
+						- b_p * (q - v[k]) + a_p * (q*q - v[k]*v[k])
+						+ 2*a_c * (q-v[k])*(-dshift_c) + 2*a_p * (q-v[k])*(dshift_p) )
+		      																		/ ( 2*a_c*(q-v[k]) + 2*a_p*(q-v[k]) );
+			}
+			k++;
+			v[k]   = q;
+			z[k]   = s;
+			z[k+1] = +INF;
+		}
+
+		k = 0;
+		for (q = 0; q <= dlen-1; q++) {
+			while (z[k+1] < q)
+				k++;
+			dst[q*step] = src[v[k]*step] + a_c * (q + dshift_c - v[k]) * (q + dshift_c - v[k]) + b_c * -(q + dshift_c - v[k])
+		    																		+ a_p * (q - dshift_p - v[k]) * (q - dshift_p - v[k]) + b_p * (q - dshift_p - v[k]);
+			ptr[q*step] = v[k];
+		}
+	}
+}
+
+// -------------------------------------------------------
+__global__ void convert_one_indexing(const int nthreads,
+		int32_t *Ix, int32_t *Iy, const int32_t *tmpIy,
+		int32_t leny){
+	CUDA_KERNEL_LOOP(index, nthreads) {
+		int y = index % leny;
+		Iy[index] = tmpIy[Ix[index]*leny+y] + 1;
+		Ix[index] = Ix[index] + 1;
+	}
+}
+// -------------------------------------------------------
+
+template <typename Dtype>
+void MessagePassingLayer<Dtype>::distance_transform_gpu(const Dtype* vals, int sizx, int sizy,
+		const Dtype* defw_c, const Dtype* defw_p,
+		Dtype* mean_c, Dtype* var_c,
+		Dtype* mean_p, Dtype* var_p,
+		int32_t lenx, int32_t leny,
+		Dtype *M, int32_t *Ix, int32_t *Iy
+)
+/**
+ * Compute distance transform of map vals
+ * Input params
+ * - vals:  input map (gpu data)
+ * - sizx, sizy: size of the inputmap vals
+ * - defw_c, defw_p: deformation weight child->parent and parent->child (cpu data)
+ * - mean_c, mean_p: child->parent mean / parent->child mean (cpu data)
+ * - var_c, var_p: child->parent var / parent->child var (could set as [1, 1]) (cpu data)
+ * - lenx, leny: ????
+ *
+ * Output Params (gpu data)
+ * - M
+ * - Ix, Iy
+ */
+{
+
+	// ---- deformation weight child->parent
+	Dtype ax_c = -defw_c[0] ;            // 2nd order
+	Dtype bx_c = -defw_c[1] ;            // 1st order
+	Dtype ay_c = -defw_c[2];
+	Dtype by_c = -defw_c[3];
+
+	// ---- deformation weight parent->child
+	Dtype ax_p = -defw_p[0];
+	Dtype bx_p = -defw_p[1];
+	Dtype ay_p = -defw_p[2];
+	Dtype by_p = -defw_p[3];
+
+	Dtype   *cpu_tmpM =  new Dtype[leny*sizx];
+	int32_t *cpu_tmpIy = new int32_t[leny*sizx];
+
+	Dtype		*tmpM = NULL;
+	cudaMalloc((void**)&tmpM, sizeof(Dtype)*leny*sizx);
+	cudaMemset(tmpM, 0, sizeof(Dtype)*leny*sizx);
+
+	int32_t	*tmpIy = NULL;
+	cudaMalloc((void**)&tmpIy, sizeof(int32_t)*leny*sizx);
+	cudaMemset(tmpIy, 0, sizeof(int32_t)*leny*sizx);
+
+
+	int 	*v = NULL;
+	float	*z = NULL;
+
+	// ---- for each column
+	cudaMalloc((void**)&v, sizeof(int)*sizy*sizx);
+	cudaMalloc((void**)&z, sizeof(float)*(sizy+1)*sizx);
+	cudaMemset(v, 0, sizeof(int)*sizy*sizx);
+	cudaMemset(z, 0, sizeof(float)*(sizy+1)*sizx);
+
+	dt1d_gpu<Dtype><<<CAFFE_GET_BLOCKS(sizx), CAFFE_CUDA_NUM_THREADS>>>(
+			sizx,
+			vals, tmpM, tmpIy,
+			v, z,
+			1, sizy, // step, len
+			ay_c/pow(var_c[1], 2), by_c/var_c[1],
+			ay_p/pow(var_p[1], 2), by_p/var_p[1],
+			mean_c[1], mean_p[1],
+			leny, true // dlen, is_continuous
+	);
+
+	cudaFree(v);
+	cudaFree(z);
+
+	// ---- for each row
+
+	cudaMalloc((void**)&v, sizeof(int)*sizx*leny);
+	cudaMalloc((void**)&z, sizeof(float)*(sizx+1)*leny);
+	cudaMemset(v, 0, sizeof(int)*sizx*leny);
+	cudaMemset(z, 0, sizeof(float)*(sizx+1)*leny);
+
+	dt1d_gpu<Dtype><<<CAFFE_GET_BLOCKS(leny), CAFFE_CUDA_NUM_THREADS>>>(
+			leny,
+			tmpM, M, Ix,
+			v, z,
+			leny, sizx, // step, len
+			ax_c/pow(var_c[0], 2), bx_c/var_c[0],
+			ax_p/pow(var_p[0], 2), bx_p/var_p[0],
+			mean_c[0], mean_p[0], lenx, false);
+
+	// get argmins and adjust for matlab indexing from 1
+	convert_one_indexing<<<CAFFE_GET_BLOCKS(lenx*leny), CAFFE_CUDA_NUM_THREADS>>>(static_cast<int>( lenx*leny ),
+			Ix, Iy, tmpIy,
+			leny);
+
+	cudaFree(v);
+	cudaFree(z);
+	cudaFree(tmpM);
+	cudaFree(tmpIy);
+}
+
+
+//----------- transpose_matrix --------------
+template <typename Dtype1, typename Dtype2>
+__global__ void transpose_matrix(const int nthreads,
+		const Dtype1* const source_,
+		Dtype2* const target_,
+		const int height, const int width) {
+	CUDA_KERNEL_LOOP(index, nthreads) {
+		const int w = index % width;
+		const int h = (index / width) % height;
+		target_[w*height + h] = static_cast<Dtype2>(source_[h*width + w]);
+	}
+}
+
+//----------- maxout_scoremap --------------
+template <typename Dtype>
+__global__ void maxout_scoremap(const int nthreads,
+		const Dtype* const score_data,
+		Dtype* const max_score_data,
+		int* const max_idx_data,
+		const int n,
+		const int height, const int width, const int channel) {
+	CUDA_KERNEL_LOOP(index, nthreads) {
+		const int w = index % width;
+		const int h = (index / width) % height;
+		const int c = (index / width / height) % channel;
+
+		const int score_idx = ((n * channel + c) * height + h) * width + w;
+		const int max_score_idx = (n*height*width) + (h*width + w);
+		if ( score_data[score_idx] > max_score_data[max_score_idx]) {
+			max_score_data[max_score_idx] = score_data[score_idx];
+			max_idx_data[max_score_idx] = c;
+		}
+	}
+}
+
+//----------- Forward_gpu --------------
+template <typename Dtype>
+void MessagePassingLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+		const vector<Blob<Dtype>*>& top) {
+
+	LOG(INFO) << "MP forward GPU";
+	std::stringstream outstream;
+	int num = bottom[0]->num();
+	int height = bottom[0]->height();
+	int width = bottom[0]->width();
+
+	// get input maps
+	const Dtype*  app_map = bottom[0]->gpu_data();
+	const Dtype*  def_map = bottom[1]->gpu_data();
+	// get dt maps
+	Dtype*        score_ptr = score_.mutable_gpu_data(); // dt map
+	Dtype*        Ix_ptr = Ix_.mutable_gpu_data();  // Ix
+	Dtype*        Iy_ptr = Iy_.mutable_gpu_data();  // Iy
+
+	// params
+	const Dtype* 	defw = this->blobs_[0]->cpu_data();
+	const Dtype* 	pdefs = this->blobs_[1]->cpu_data();
+
+	cbid_ = std::find(nbh_IDs[child_-1].begin(), nbh_IDs[child_-1].end(), parent_) - nbh_IDs[child_-1].begin();
+	pbid_ = std::find(nbh_IDs[parent_-1].begin(), nbh_IDs[parent_-1].end(), child_) - nbh_IDs[parent_-1].begin();
+
+	ptarget_ = target_IDs[child_-1][cbid_];
+	ctarget_ = target_IDs[parent_-1][pbid_];
+
+	// message passing
+	int Ny = bottom[0]->height();
+	int Nx = bottom[0]->width();
+
+
+	Dtype*	val_data = val_data_.mutable_gpu_data();
+	int* 		tmp_Ix_data = tmp_Ix_.mutable_gpu_data();
+	int* 		tmp_Iy_data = tmp_Iy_.mutable_gpu_data();
+
+	Dtype* tmp_def_map_data = tmp_def_map_.mutable_gpu_data();
+
+	clock_t start, end;
+	start = clock();
+	outstream.clear();
+	for (int n = 0; n < num; ++n) {
+		const Dtype* 	app_map_offset = app_map + bottom[0]->offset(n, child_-1);
+		for (int mc = 0; mc < mix_num_; ++mc) {
+			for (int mp = 0; mp < mix_num_; ++mp) {
+				// ----  top offset
+				Dtype* cur_score_ptr = score_ptr + score_.offset(n, mc*mix_num_+mp); 	// dt map
+				Dtype* cur_Ix_ptr = Ix_ptr + Ix_.offset(n, mc*mix_num_+mp);		// Ix
+				Dtype* cur_Iy_ptr = Iy_ptr + Iy_.offset(n, mc*mix_num_+mp);		// Iy
+
+				// ----  clean val_data, Ix_data, Iy_data
+				caffe_gpu_set(height*width, Dtype(0), val_data);
+				caffe_gpu_set(height*width, 0, tmp_Ix_data);
+				caffe_gpu_set(height*width, 0, tmp_Iy_data);
+				// ----   child.defmap
+				const Dtype* 	def_map_offset = def_map + bottom[1]->offset(n, (ptarget_-1)*mix_num_+mc);
+
+				caffe_copy(height*width, def_map_offset, tmp_def_map_data);
+				caffe_gpu_scal<Dtype>(height*width, pdefs[ptarget_-1], tmp_def_map_data);
+				//  ---- child.score + child.defmap{cbid}(:, :, mc)
+				caffe_copy(Ny*Nx, app_map_offset, cur_score_ptr);
+				caffe_gpu_axpy(Ny*Nx, Dtype(1), tmp_def_map_data, cur_score_ptr);
+				// ---- Transpose to column first (for distance transform)
+				transpose_matrix<Dtype, Dtype><<<CAFFE_GET_BLOCKS(height*width), CAFFE_CUDA_NUM_THREADS>>>( height*width,
+						cur_score_ptr,
+						val_data,
+						height, width);
+				// ---- deformation weight child->parent
+				const Dtype*	defw_c = defw + this->blobs_[0]->offset(0, 0, (ptarget_-1)*mix_num_+mc);
+				// ---- deformation weight parent->child
+				const Dtype*	defw_p = defw + this->blobs_[0]->offset(0, 0, (ctarget_-1)*mix_num_+mp);
+				// ---- child->parent var
+				Dtype var_c[2] = {1, 1};
+				// ---- parent->child var
+				Dtype var_p[2] = {1, 1};
+				// ---- child->parent mean (in caffe should be (mean_y, mean_x))
+				Dtype mean_c[2] = {meanvals_[(ptarget_-1)*mix_num_+mc].second, meanvals_[(ptarget_-1)*mix_num_+mc].first};
+				// ---- parent->child mean
+				Dtype mean_p[2] = {meanvals_[(ctarget_-1)*mix_num_+mp].second, meanvals_[(ctarget_-1)*mix_num_+mp].first};
+
+				// ---- Distance Transform
+				distance_transform_gpu(val_data, Nx, Ny, defw_c, defw_p,
+						mean_c, var_c, mean_p, var_p, Nx, Ny,
+						val_data, tmp_Ix_data, tmp_Iy_data);
+
+				// ---- Transpose to width first (for Caffe blobs)
+				transpose_matrix<Dtype, Dtype><<<CAFFE_GET_BLOCKS(height*width), CAFFE_CUDA_NUM_THREADS>>>( height*width,
+						val_data,
+						cur_score_ptr,
+						val_data_.height(), val_data_.width());
+				transpose_matrix<int, Dtype><<<CAFFE_GET_BLOCKS(height*width), CAFFE_CUDA_NUM_THREADS>>>( height*width,
+						tmp_Ix_data,
+						cur_Ix_ptr,
+						tmp_Ix_.height(), tmp_Ix_.width());
+				transpose_matrix<int, Dtype><<<CAFFE_GET_BLOCKS(height*width), CAFFE_CUDA_NUM_THREADS>>>( height*width,
+						tmp_Iy_data,
+						cur_Iy_ptr,
+						tmp_Iy_.height(), tmp_Iy_.width());
+
+				// ---- Compute: score0(:,:,mc,mp) = score0(:,:,mc,mp) + parent.pdw(pbid)*parent.defMap{pbid}(:,:,mp);
+				// ----  parent.defmap
+				caffe_copy(height*width, def_map_offset, tmp_def_map_data);
+				caffe_gpu_scal(height*width, pdefs[ctarget_-1], tmp_def_map_data);
+				//  ---- child.score + child.defmap{cbid}(:, :, mc)
+				caffe_gpu_axpy(Ny*Nx, Dtype(1), tmp_def_map_data, cur_score_ptr);
+
+			} // end MP
+		} // end MC
+		end = clock();
+
+		LOG(INFO) << "Time required for distance transform: "
+				<< (double)(end-start)/CLOCKS_PER_SEC
+				<< " seconds." << "\n\n";
+		//		LOG(INFO) << "max out";
+		// max out score maps
+
+		/*		maxout_scoremap<Dtype><<<CAFFE_GET_BLOCKS(height*width*score_.channels()), CAFFE_CUDA_NUM_THREADS>>>(height*width*score_.channels(),
+				score_.gpu_data(),
+				max_score_.mutable_gpu_data(),
+				max_idx_.mutable_gpu_data(),
+				n,
+				score_.height(), score_.width(), score_.channels());*/
+
+		Dtype* 	max_score_ptr_offset = max_score_.mutable_cpu_data() + max_score_.offset(n);
+		int* 		mask_offset = max_idx_.mutable_cpu_data() +max_idx_.offset(n);
+		Dtype* 	max_Ix_ptr_offset = max_Ix_.mutable_cpu_data()+max_Ix_.offset(n);
+		Dtype* 	max_Iy_ptr_offset = max_Iy_.mutable_cpu_data()+max_Iy_.offset(n);
+
+		for (int h = 0; h < height; ++h) {
+			for (int w = 0; w < width; ++w) {
+				for (int c = 0; c < score_.channels(); ++c) {
+					if ( score_.data_at(n, c, h, w) > max_score_ptr_offset[h*width + w]) {
+						max_score_ptr_offset[h*width + w] = score_.data_at(n, c, h, w);
+						mask_offset[h*width+w] = c;
+					}
+				}
+
+				// set Ix Iy
+				max_Ix_ptr_offset[h*width+w] = Ix_.data_at(n, mask_offset[h*width+w], h, w);
+				max_Iy_ptr_offset[h*width+w] = Iy_.data_at(n, mask_offset[h*width+w], h, w);
+				//		LOG(INFO) << "(" << h+1 << ", " << w+1 << ")" <<max_idx_.data_at(n, 0, h, w) ;
+			}
+		}
+
+		// ---- parts(par).score = parts(par).score + msg;
+		Dtype* 	par_app_map_offset = top[0]->mutable_gpu_data() + top[0]->offset(n, parent_-1);
+		caffe_gpu_axpy(height*width, Dtype(1), max_score_.gpu_data() + max_score_.offset(n), par_app_map_offset);
+	} // end n
+
+	// save Ix, Iy
+	caffe_copy(max_Iy_.count(), max_Iy_.gpu_data(), top[1]->mutable_gpu_data());
+	caffe_copy(max_Ix_.count(), max_Ix_.gpu_data(), top[2]->mutable_gpu_data());
+}
+
+template <typename Dtype>
+void MessagePassingLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
+		const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
+
+
+	const int* mask = max_idx_.cpu_data();
+	const int count = top[0]->count();
+	const Dtype* top_data = top[0]->cpu_data();
+	const Dtype* top_diff = top[0]->cpu_diff();
+	int num = top[0]->num();
+	int channels = top[0]->channels();
+	int height = top[0]->height();
+	int width = top[0]->width();
+
+	// store diff for max(dt((app_map + def_map)))
+	Blob<Dtype>	maxout_diff_;
+	maxout_diff_.Reshape(num, mix_num_*mix_num_, height, width);
+	caffe_set(maxout_diff_.count(), Dtype(0), maxout_diff_.mutable_cpu_data());
+
+	// store diff for dt(app_map + def_map)
+	Blob<Dtype>	mid_diff_;
+	mid_diff_.Reshape(num, mix_num_*mix_num_, height, width);
+	caffe_set(mid_diff_.count(), Dtype(0), mid_diff_.mutable_cpu_data());
+
+	Dtype* unary_diff = bottom[0]->mutable_cpu_diff();
+	Dtype* idpr_diff = bottom[1]->mutable_cpu_diff();
+	Dtype* maxout_diff = maxout_diff_.mutable_cpu_diff();
+	Dtype* mid_diff = mid_diff_.mutable_cpu_diff();
+	Dtype* defw_diff = this->blobs_[0]->mutable_cpu_diff();
+
+
+	// set diff = 0 (mid_diff has been set as 0 in Reshape ())
+	caffe_set(bottom[0]->count(), Dtype(0), unary_diff);
+	caffe_set(bottom[1]->count(), Dtype(0), idpr_diff);
+
+	/*	const int* max_idx = max_idx_.cpu_data();
+	int maxval = 0;
+	for (int i = 0; i < max_idx_.count(); ++i) {
+		if (max_idx[i] > maxval)
+			maxval = max_idx[i];
+	}
+
+	LOG(INFO) << "maxval: " << maxval;*/
+
+
+	for(int n=0; n<num; ++n) {
+		Dtype* par_unary_diff = unary_diff + bottom[0]->offset(n, parent_-1);
+		// ---- compute gradient for unary term (parent)
+		caffe_axpy(height*width, Dtype(1), top_diff+top[0]->offset(n, parent_-1), par_unary_diff);
+		// ---- compute gradient for max operation
+		for (int h = 0; h < height; ++h) {
+			for (int w = 0; w < width; ++w) {
+				int max_channel_ = max_idx_.data_at(n, 0, h, w);
+				*(maxout_diff + maxout_diff_.offset(n, max_channel_, h, w)) += top[0]->diff_at(n, parent_-1, h, w);
+			}
+		}
+
+		LOG(INFO) << "IX: " << Ix_.shape_string();
+		LOG(INFO) << "top[0]: " << top[0]->shape_string();
+
+		const Dtype* Ix_data = Ix_.cpu_data();
+		int minval = 100000, maxval = -100000;
+		for (int i = 0; i < Ix_.count(); ++i){
+			if (Ix_data[i] < minval) {
+				minval = Ix_data[i];
+			} else if (Ix_data[i] > maxval) {
+				maxval = Ix_data[i];
+			}
+		}
+
+		LOG(INFO) << "min val: " << minval << " | maxval: " << maxval;
+
+		const Dtype* Iy_data = Iy_.cpu_data();
+		minval = 100000, maxval = -100000;
+		for (int i = 0; i < Iy_.count(); ++i){
+			if (Iy_data[i] < minval) {
+				minval = Iy_data[i];
+			} else if (Iy_data[i] > maxval) {
+				maxval = Iy_data[i];
+			}
+		}
+
+		LOG(INFO) << "min val: " << minval << " | maxval: " << maxval;
+
+		LOG(INFO) << "maxout_diff_: " << maxout_diff_.channels() << " | mid_diff_: " << mid_diff_.channels();
+		// ---- compute gradient for dt
+		Dtype* 	child_unary_diff = unary_diff + bottom[0]->offset(n, child_-1);
+		for (int c = 0; c < mid_diff_.channels(); ++c){
+			for (int h = 0; h < height; ++h) {
+				for (int w = 0; w < width; ++w) {
+					int diff_h = Iy_.data_at(n, c, h, w)-1;
+					int diff_w = Ix_.data_at(n, c, h, w)-1;
+					*(mid_diff + mid_diff_.offset(n, c, h, w)) += maxout_diff_.diff_at(n, c, diff_h, diff_w);
+				}
+			}
+			// ---- compute gradient for unary (child)
+			caffe_axpy(height*width, Dtype(1), mid_diff+mid_diff_.offset(n, c), child_unary_diff);
+		}
+
+		// ---- compute gradient for idpr map
+		for (int mc = 0; mc < mix_num_; ++mc) {
+			for (int mp = 0; mp < mix_num_; ++mp) {
+				Dtype* cur_idpr_diff = idpr_diff + bottom[1]->offset(n, (ptarget_-1)*mix_num_+mc);
+				caffe_axpy(height*width, Dtype(1), mid_diff+mid_diff_.offset(n, mc*mix_num_+mp), cur_idpr_diff);
+
+				// ---- deformation weight child->parent
+				Dtype*	defw_diff_c = defw_diff + this->blobs_[0]->offset(0,0,(ptarget_-1)*mix_num_+mc);
+				// ---- deformation weight parent->child
+				Dtype*	defw_diff_p = defw_diff + this->blobs_[0]->offset(0,0,(ctarget_-1)*mix_num_+mp);
+
+				// Note: -defw[0]*dx^2 - defw[1]*dx - defw[2]*dy^2 - defw[3]*dy
+				for (int h = 0; h < height; ++h) {
+					for (int w = 0; w < width; ++w) {
+						int 	channel_idx = mc*mix_num_+mp;
+						Dtype dt_diff = maxout_diff_.diff_at(n, channel_idx, h, w);
+						Dtype dy = Iy_.data_at(n, channel_idx, h, w);
+						Dtype dx = Ix_.data_at(n, channel_idx, h, w);
+
+						defw_diff_c[0] = -dt_diff*square(dx); 	// ax_c: 2nd order
+						defw_diff_c[1] = dt_diff*dx;						// bx_c: 1st order
+						defw_diff_c[2] = -dt_diff*square(dy);		// ay_c
+						defw_diff_c[3] = dt_diff*dy;						// by_c
+
+						defw_diff_p[0] = -dt_diff*square(dx);
+						defw_diff_p[1] = -dt_diff*dx;
+						defw_diff_p[2] = -dt_diff*square(dy);
+						defw_diff_p[3] = -dt_diff*dy;
+					}
+				}
+			}
+		}
+
+	}
+
+
+
+
+	LOG(INFO) << "End BP" ;
+}
+
+INSTANTIATE_LAYER_GPU_FUNCS(MessagePassingLayer);
+
+}  // namespace caffe

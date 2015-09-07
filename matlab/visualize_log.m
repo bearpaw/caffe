@@ -1,6 +1,6 @@
 function visualize_log(logfile)
 if nargin < 1
-  logfile = '/home/wyang/github/caffe/examples/lsp_window_data/conv5-96c/cache/train-11-Feb-2015-conv5-96/train-11-Feb-2015-conv5-96-train.log';
+  logfile = '/home/wyang/code/train-log.log';
 end
 
 [~, filename, ext] = fileparts(logfile);

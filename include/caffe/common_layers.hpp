@@ -12,6 +12,7 @@
 #include "caffe/loss_layers.hpp"
 #include "caffe/neuron_layers.hpp"
 #include "caffe/proto/caffe.pb.h"
+#include <sys/time.h>
 
 
 #include "caffe/util/C3dmat.hpp"
@@ -183,8 +184,6 @@ class SumLayer : public Layer<Dtype> {
    */
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
-  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
 //  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 //      const vector<Blob<Dtype>*>& top);
 
@@ -212,8 +211,6 @@ class SumLayer : public Layer<Dtype> {
    */
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
-      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 //  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
 //      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
@@ -222,8 +219,9 @@ class SumLayer : public Layer<Dtype> {
   string      source_;
   vector<int> pa_;
 	Vec3DMat    global_IDs; 
-  vector<vector <int> >  nbh_IDs; 
-  vector<vector <int> >  target_IDs; 
+  vector<vector <int> >  	nbh_IDs;
+  vector<vector <int> >  	target_IDs;
+  vector< vector<int> > 	global_ids_vecs;
 
   /**
    * Compute global_IDs, nbh_IDs, target_IDs
@@ -266,8 +264,6 @@ class IdprLayer : public Layer<Dtype> {
    */
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
-  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
 //  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 //      const vector<Blob<Dtype>*>& top);
 
@@ -294,8 +290,6 @@ class IdprLayer : public Layer<Dtype> {
    *        @f$
    */
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
-      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 //  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
 //      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
@@ -385,13 +379,20 @@ class MessagePassingLayer : public Layer<Dtype> {
   void dt1d(const Dtype *src, Dtype *dst, int *ptr, int step, int len,
           Dtype a_c, Dtype b_c, Dtype a_p, Dtype b_p, Dtype dshift_c, Dtype dshift_p, int dlen) ;
 
-  void distance_transform(const Dtype* vals, int sizx, int sizy,
+  void distance_transform_cpu(const Dtype* vals, int sizx, int sizy,
                           const Dtype* defw_c, const Dtype* defw_p,
                           Dtype* mean_c, Dtype* var_c,
                           Dtype* mean_p, Dtype* var_p,
                           int32_t lenx, int32_t leny,
                           Dtype *M, int32_t *Ix, int32_t *Iy
                           ) ;
+  void distance_transform_gpu(const Dtype* vals, int sizx, int sizy,
+  		const Dtype* defw_c, const Dtype* defw_p,
+  		Dtype* mean_c, Dtype* var_c,
+  		Dtype* mean_p, Dtype* var_p,
+  		int32_t lenx, int32_t leny,
+  		Dtype *M, int32_t *Ix, int32_t *Iy
+  );
 
   int         mix_num_;
   string      source_;
@@ -406,6 +407,8 @@ class MessagePassingLayer : public Layer<Dtype> {
   int					pbid_;
   int 				ptarget_;
   int 				ctarget_;
+  Dtype 			pscalar_;
+  Dtype 			cscalar_;
 
   vector<vector <int> >  nbh_IDs;
   vector<vector <int> >  target_IDs;
@@ -420,9 +423,17 @@ class MessagePassingLayer : public Layer<Dtype> {
   Blob<Dtype>	max_score_;
   Blob<Dtype> max_Ix_;
   Blob<Dtype> max_Iy_;
+	Blob<Dtype>	tmp_def_map_;
+
+
+	Blob<Dtype>	val_data_;
+	Blob<int>		tmp_Ix_;
+	Blob<int>		tmp_Iy_;
 
   // for BP
   Blob<int> 	max_idx_;		// store max deformation score index (channel)
+	Blob<Dtype>	maxout_diff_;
+	Blob<Dtype>	mid_diff_;
 
 
   // Compute global_IDs, nbh_IDs, target_IDs

@@ -55,8 +55,11 @@ void IdprLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 void IdprLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
+	LOG(INFO) << "IDPR forward cpu";
+	clock_t start, end;
+	start = clock();
   Dtype*        top_data = top[0]->mutable_cpu_data();
-  LOG(INFO) << "reshape norm cnt: " << normfactor.channels();
+//  LOG(INFO) << "reshape norm cnt: " << normfactor.channels();
 
   // top statistics
   int top_num = top[0]->num();
@@ -103,7 +106,6 @@ void IdprLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 						}
 					} // end w
 				} // end h
-
 				// Normalize the summed IDPR map (mixture_num of channels)
 				for (int tid = tmapid - 1; tid >= tmapid - mix_num_; --tid) {
 					caffe_div(map_size, top_data + top[0]->offset(n, tid), normfactor_+normfactor.offset(n, normcnt), top_data + top[0]->offset(n, tid));
@@ -112,6 +114,11 @@ void IdprLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       } // end neighbor
     } // end parts
   } // end sample
+	end = clock();
+
+	LOG(INFO) << "IDPR forword CPU: "
+	<< (double)(end-start)/CLOCKS_PER_SEC
+	<< " seconds.";
 }
 
 template <typename Dtype>
@@ -127,7 +134,7 @@ void IdprLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 		Dtype* normfactor_ = normfactor.mutable_cpu_data();
 
 	  // compute IDPR maps
-	  caffe_set(bottom[0]->count(), Dtype(0), bottom[0]->mutable_cpu_diff());
+	  // caffe_set(bottom[0]->count(), Dtype(0), bottom[0]->mutable_cpu_diff());
 		Dtype*        bottom_diff = bottom[0]->mutable_cpu_diff();
 		const Dtype*        top_diff = top[0]->cpu_diff();
 
@@ -145,8 +152,7 @@ void IdprLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 	              int bmapid = idpr_mix->at(m, c, d);
 
 	              // -------sum a diff map
-	            	caffe_axpy (map_size,
-	            			Dtype(1),
+	            	caffe_copy (map_size,
 	            			top_diff + top[0]->offset(n, tmapid),
 	            			bottom_diff+bottom[0]->offset(n, bmapid)
 	            			);

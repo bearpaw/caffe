@@ -32,6 +32,7 @@ __global__ void IdprForward(const int nthreads,
 template <typename Dtype>
 void IdprLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
+	LOG(INFO) << "idpr layer";
   Dtype*        top_data = top[0]->mutable_gpu_data();
 
   // top statistics
@@ -73,7 +74,6 @@ void IdprLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
         } // end mix
 
 				// compute the normalization term
-
         IdprForward<Dtype><<<CAFFE_GET_BLOCKS(top_height*top_width), CAFFE_CUDA_NUM_THREADS>>>(
         		top_height*top_width,
         		top[0]->gpu_data(),
@@ -81,7 +81,7 @@ void IdprLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
             tmapid, mix_num_,
             normfactor_ + normfactor.offset(n, normcnt));
 
-				// Normalize the summed IDPR map (mixture_num of channels)
+ 				// Normalize the summed IDPR map (mixture_num of channels)
 				for (int tid = tmapid - 1; tid >= tmapid - mix_num_; --tid) {
 					caffe_gpu_div(map_size, top_data + top[0]->offset(n, tid), normfactor_+normfactor.offset(n, normcnt), top_data + top[0]->offset(n, tid));
 				}
@@ -89,6 +89,8 @@ void IdprLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       } // end neighbor
     } // end parts
   } // end sample
+
+  LOG(INFO) << "END forward";
 }
 
 template <typename Dtype>

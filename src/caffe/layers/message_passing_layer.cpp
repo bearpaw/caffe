@@ -25,7 +25,7 @@ template <typename Dtype>
 void MessagePassingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
 	CHECK_LE(top.size(), 3)
-	      		<< "There should be <= 3 tops for this layer";
+	      						<< "There should be <= 3 tops for this layer";
 	const MessagePassingParameter& params = this->layer_param_.message_passing_param();
 	// read number of mixtures
 	mix_num_ = params.mix_num();
@@ -52,26 +52,35 @@ void MessagePassingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 	get_IDs();
 	// Initialize and fill the weights
 	// Only four weights for quadratic form distance feature
-	this->blobs_.resize(2); // only weight no bias
-	vector<int> weight_shape(4);
-	weight_shape[0] = 1;
-	weight_shape[1] = 1;
-	weight_shape[2] = bottom[1]->channels();
-	weight_shape[3] = 4;
-	this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
-	shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
-			this->layer_param_.message_passing_param().weight_filler()));
-	weight_filler->Fill(this->blobs_[0].get());
+	if (this->blobs_.size() > 0) {
+		LOG(INFO) << "Skipping parameter initialization";
+	} else {
+		this->blobs_.resize(2); // only weight no bias
+		vector<int> weight_shape(4);
+		weight_shape[0] = 1;
+		weight_shape[1] = 1;
+		weight_shape[2] = bottom[1]->channels();
+		weight_shape[3] = 4;
+		this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
+		shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
+				this->layer_param_.message_passing_param().weight_filler()));
+		weight_filler->Fill(this->blobs_[0].get());
 
-	// set idpr map weight
-	CHECK_EQ(bottom[1]->channels()%mix_num_, 0)
-	      		<< "The number of idpr maps should be n times the mixture num.";
-	vector<int> pdefs_shape(1);
-	pdefs_shape[0] = bottom[1]->channels() / mix_num_;
-	this->blobs_[1].reset(new Blob<Dtype>(pdefs_shape));
-	shared_ptr<Filler<Dtype> > pdefs_filler(GetFiller<Dtype>(
-			this->layer_param_.message_passing_param().pdefs_filler()));
-	pdefs_filler->Fill(this->blobs_[1].get());
+		// set idpr map weight
+		CHECK_EQ(bottom[1]->channels()%mix_num_, 0)
+		<< "The number of idpr maps should be n times the mixture num.";
+		vector<int> pdefs_shape(4);
+		pdefs_shape[0] = bottom[1]->channels() / mix_num_;
+		pdefs_shape[1] = 1;
+		pdefs_shape[2] = 1;
+		pdefs_shape[3] = 1;
+		this->blobs_[1].reset(new Blob<Dtype>(pdefs_shape));
+		shared_ptr<Filler<Dtype> > pdefs_filler(GetFiller<Dtype>(
+				this->layer_param_.message_passing_param().pdefs_filler()));
+		pdefs_filler->Fill(this->blobs_[1].get());
+	}
+	// Propagate gradients to the parameters (as directed by backward pass).
+	this->param_propagate_down_.resize(this->blobs_.size(), true);
 }
 
 /**
@@ -97,7 +106,8 @@ void MessagePassingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 	//---------- set maxout index
 	max_idx_.Reshape(num, 1, height, width);
 	int* mask = max_idx_.mutable_cpu_data();
-	caffe_set(max_idx_.count(), -1, mask);
+	//	caffe_set(max_idx_.count(), -1, mask);
+	caffe_set(max_idx_.count(), 0, mask);
 	//---------- max dt score map
 	max_score_.Reshape(num, 1, height, width);
 	caffe_set(max_score_.count(), Dtype(-10000), max_score_.mutable_cpu_data());
@@ -107,6 +117,9 @@ void MessagePassingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 	//---------- Ix
 	max_Ix_.Reshape(num, 1, height, width);
 	caffe_set(max_Ix_.count(), Dtype(0), max_Ix_.mutable_cpu_data());
+	//---------- tmp_def_map_
+	tmp_def_map_.Reshape(1, 1, height, width);
+	caffe_set(tmp_def_map_.count(), Dtype(0), tmp_def_map_.mutable_cpu_data());
 	//---------- top[0] dt score
 	top[0]->Reshape(num, bottom[0]->channels(), height, width);
 	caffe_copy(top[0]->count(), bottom[0]->cpu_data(), top[0]->mutable_cpu_data());
@@ -116,24 +129,26 @@ void MessagePassingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 	//---------- top[2] Iy
 	top[2]->Reshape(num, 1, height, width);
 	caffe_set(top[2]->count(), Dtype(0), top[2]->mutable_cpu_data());
-
+	//---------- DT
+	val_data_.Reshape(1, 1, width, height);
+	tmp_Ix_.Reshape(1, 1, width, height);
+	tmp_Iy_.Reshape(1, 1, width, height);
 }
 
 template <typename Dtype>
 void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
+	clock_t start, end;
+	start = clock();
 
-
-//	LOG(INFO) << "Weight shape :" << this->blobs_[0]->shape_string();
+	//LOG(INFO) << "Weight shape :" << this->blobs_[0]->shape_string();
 	std::stringstream outstream;
 	int num = bottom[0]->num();
 	int height = bottom[0]->height();
 	int width = bottom[0]->width();
-	// tmp def map
-	Blob<Dtype>	tmp_def_map;
-	tmp_def_map.Reshape(1, 1, height, width);
-	caffe_set(tmp_def_map.count(), Dtype(0), tmp_def_map.mutable_cpu_data());
-	Dtype*			tmp_def_map_data = tmp_def_map.mutable_cpu_data();
+
+	tmp_def_map_.Reshape(1, 1, height, width);
+	caffe_set(tmp_def_map_.count(), Dtype(0), tmp_def_map_.mutable_cpu_data());
 
 	// get input maps
 	const Dtype*  app_map = bottom[0]->cpu_data();
@@ -155,14 +170,14 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 	cbid_ = std::find(nbh_IDs[child_-1].begin(), nbh_IDs[child_-1].end(), parent_) - nbh_IDs[child_-1].begin();
 	pbid_ = std::find(nbh_IDs[parent_-1].begin(), nbh_IDs[parent_-1].end(), child_) - nbh_IDs[parent_-1].begin();
 
-	/*	LOG(INFO) << "cbid: " << cbid << " | pbid: " << pbid;*/
+	//	LOG(INFO) << "cbid: " << cbid_ << " | pbid: " << pbid_;
 
 	ptarget_ = target_IDs[child_-1][cbid_];
 	ctarget_ = target_IDs[parent_-1][pbid_];
 
-	/*	LOG(INFO) << "ctarget : " << ctarget << " | ptarget: " << ptarget;
+	LOG(INFO) << "ctarget : " << ctarget_ << " | ptarget: " << ptarget_;
 
-	LOG(INFO) << "btm 0 shape: " << bottom[0]->shape_string();
+	/*	LOG(INFO) << "btm 0 shape: " << bottom[0]->shape_string();
 	LOG(INFO) << "btm 1 shape: " << bottom[1]->shape_string();*/
 
 	// message passing
@@ -173,7 +188,6 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 	int32_t* 	tmp_Ix_data = new int32_t[height*width];
 	int32_t* 	tmp_Iy_data = new int32_t[height*width];
 
-	outstream.clear();
 	for (int n = 0; n < num; ++n) {
 		const Dtype* 	app_map_offset = app_map + bottom[0]->offset(n, child_-1);
 
@@ -190,13 +204,14 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 				caffe_set(height*width, 0, tmp_Iy_data);
 
 				// ----   child.defmap
-				const Dtype* def_map_offset = def_map + bottom[1]->offset(n, (ptarget_-1)*mix_num_+mc);
+				Dtype*				tmp_def_map_data = tmp_def_map_.mutable_cpu_data();
+				const Dtype* 	def_map_offset = def_map + bottom[1]->offset(n, (ptarget_-1)*mix_num_+mc);
 				caffe_copy(height*width, def_map_offset, tmp_def_map_data);
-				caffe_scal(height*width, pdefs[ptarget_-1], tmp_def_map_data);
+				caffe_scal<Dtype>(height*width, pdefs[ptarget_-1], tmp_def_map_data);
 				//  ---- child.score + child.defmap{cbid}(:, :, mc)
 				caffe_copy(Ny*Nx, app_map_offset, cur_score_ptr);
 				caffe_axpy(Ny*Nx, Dtype(1), tmp_def_map_data, cur_score_ptr);
-
+				//LOG(INFO) << "prepare";
 				// ---- Transpose to column first (for distance transform)
 				for (int h = 0; h < height; ++h) {
 					for (int w = 0; w < width; ++w) {
@@ -218,7 +233,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 				Dtype mean_p[2] = {meanvals_[(ctarget_-1)*mix_num_+mp].second, meanvals_[(ctarget_-1)*mix_num_+mp].first};
 
 				// Distance Transform
-				distance_transform(val_data, Nx, Ny, defw_c, defw_p,
+				distance_transform_cpu(val_data, Nx, Ny, defw_c, defw_p,
 						mean_c, var_c, mean_p, var_p, Nx, Ny,
 						val_data, tmp_Ix_data, tmp_Iy_data);
 
@@ -231,6 +246,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 					}
 				}
 
+				//LOG(INFO) << "DT";
 				// Compute: score0(:,:,mc,mp) = score0(:,:,mc,mp) + parent.pdw(pbid)*parent.defMap{pbid}(:,:,mp);
 				// ----  parent.defmap
 				def_map_offset = def_map + bottom[1]->offset(n, (ctarget_-1)*mix_num_+mp);
@@ -239,15 +255,18 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 				//  ---- child.score + child.defmap{cbid}(:, :, mc)
 				caffe_axpy(Ny*Nx, Dtype(1), tmp_def_map_data, cur_score_ptr);
 
+				//LOG(INFO) << "After";
 			} // end MP
 		} // end MC
-
 		// max out score maps
+
 		Dtype* 	max_score_ptr_offset = max_score_ptr + max_score_.offset(n);
 		int* 		mask_offset = mask +max_idx_.offset(n);
 		Dtype* 	max_Ix_ptr_offset = max_Ix_ptr+max_Ix_.offset(n);
 		Dtype* 	max_Iy_ptr_offset = max_Iy_ptr+max_Iy_.offset(n);
 
+		caffe_copy(height*width, score_.cpu_data(), max_score_.mutable_cpu_data());
+		LOG(INFO) << "MAXOUT";
 		for (int h = 0; h < height; ++h) {
 			for (int w = 0; w < width; ++w) {
 				for (int c = 0; c < score_.channels(); ++c) {
@@ -263,12 +282,13 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 				//		LOG(INFO) << "(" << h+1 << ", " << w+1 << ")" <<max_idx_.data_at(n, 0, h, w) ;
 			}
 		}
+		//LOG(INFO) << "After MAXOUT";
 
 		// ---- parts(par).score = parts(par).score + msg;
 		Dtype* 	par_app_map_offset = top[0]->mutable_cpu_data() + top[0]->offset(n, parent_-1);
-//		LOG(INFO) << "score shape: " << max_score_.shape_string();
-//		LOG(INFO) << "par app shape: " << bottom[0]->shape_string();
-//		LOG(INFO) << "top[0] shape: " << top[0]->shape_string();
+		//		LOG(INFO) << "score shape: " << max_score_.shape_string();
+		//		LOG(INFO) << "par app shape: " << bottom[0]->shape_string();
+		//		LOG(INFO) << "top[0] shape: " << top[0]->shape_string();
 		caffe_axpy(height*width, Dtype(1), max_score_ptr_offset, par_app_map_offset);
 	} // end n
 
@@ -298,33 +318,49 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 	// save Ix, Iy
 	caffe_copy(max_Iy_.count(), max_Iy_.cpu_data(), top[1]->mutable_cpu_data());
 	caffe_copy(max_Ix_.count(), max_Ix_.cpu_data(), top[2]->mutable_cpu_data());
-//	LOG(INFO) << "end forward";
+	//	LOG(INFO) << "end forward";
 
+	end = clock();
+
+	LOG(INFO) << "Message Passing forward: "
+			<< (double)(end-start)/CLOCKS_PER_SEC
+			<< " seconds.";
 }
 
+
+/* -------------------------------------------------------------------------
+ * top[0]				score maps
+ * bottom[0]			score maps
+ * bottom[1]			idpr maps
+ * -------------------------------------------------------------------------*/
 template <typename Dtype>
 void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 		const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
 
-//	LOG(INFO) << "Start BP" ;
+	//	LOG(INFO) << "Start BP" ;
 
 
 	const int* mask = max_idx_.cpu_data();
 	const int count = top[0]->count();
-	const Dtype* top_data = top[0]->cpu_data();
 	const Dtype* top_diff = top[0]->cpu_diff();
 	int num = top[0]->num();
 	int channels = top[0]->channels();
 	int height = top[0]->height();
 	int width = top[0]->width();
 
-	// store diff for max(dt((app_map + def_map)))
-	Blob<Dtype>	maxout_diff_;
+	const Dtype* 	defw = this->blobs_[0]->cpu_data();
+	const Dtype* 	pdefs = this->blobs_[1]->cpu_data();
+
+	// ---- copy unary score diff from next layer
+	caffe_copy(top[0]->count(),
+			top[0]->cpu_diff(),
+			bottom[0]->mutable_cpu_diff());
+
+	// store diff for max{dt[(app_map + def_map)] + def_map}
 	maxout_diff_.Reshape(num, mix_num_*mix_num_, height, width);
 	caffe_set(maxout_diff_.count(), Dtype(0), maxout_diff_.mutable_cpu_data());
 
 	// store diff for dt(app_map + def_map)
-	Blob<Dtype>	mid_diff_;
 	mid_diff_.Reshape(num, mix_num_*mix_num_, height, width);
 	caffe_set(mid_diff_.count(), Dtype(0), mid_diff_.mutable_cpu_data());
 
@@ -333,113 +369,152 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 	Dtype* maxout_diff = maxout_diff_.mutable_cpu_diff();
 	Dtype* mid_diff = mid_diff_.mutable_cpu_diff();
 	Dtype* defw_diff = this->blobs_[0]->mutable_cpu_diff();
+	Dtype* pdefs_diff = this->blobs_[1]->mutable_cpu_diff();
 
+	//
+	//	std::stringstream outstream;
+	//  for (int i = 0; i < this->blobs_[1]->count(); ++i)
+	//  	outstream << pdefs_diff[i] << " ";
+	//  LOG(INFO) << "diff\n" << outstream.str();
+	//
+		std::stringstream outstream;
+	  for (int i = 0; i < this->blobs_[1]->count(); ++i)
+	  	outstream << pdefs_diff[i] << " ";
+	  LOG(INFO) << "diff\n" << outstream.str();
 
-	// set diff = 0 (mid_diff has been set as 0 in Reshape ())
-	caffe_set(bottom[0]->count(), Dtype(0), unary_diff);
-	caffe_set(bottom[1]->count(), Dtype(0), idpr_diff);
-
-/*	const int* max_idx = max_idx_.cpu_data();
-	int maxval = 0;
-	for (int i = 0; i < max_idx_.count(); ++i) {
-		if (max_idx[i] > maxval)
-			maxval = max_idx[i];
-	}
-
-	LOG(INFO) << "maxval: " << maxval;*/
-
+	LOG(INFO) <<  "pdefs_diff: " << ctarget_-1 << " : " << ptarget_-1;
 
 	for(int n=0; n<num; ++n) {
 		Dtype* par_unary_diff = unary_diff + bottom[0]->offset(n, parent_-1);
-		// ---- compute gradient for unary term (parent)
-		caffe_axpy(height*width, Dtype(1), top_diff+top[0]->offset(n, parent_-1), par_unary_diff);
 		// ---- compute gradient for max operation
+		// Step 1: compute gradient for
 		for (int h = 0; h < height; ++h) {
 			for (int w = 0; w < width; ++w) {
 				int max_channel_ = max_idx_.data_at(n, 0, h, w);
-				*(maxout_diff + maxout_diff_.offset(n, max_channel_, h, w)) += top[0]->diff_at(n, parent_-1, h, w);
+				maxout_diff[maxout_diff_.offset(n, max_channel_, h, w)] = top[0]->diff_at(n, parent_-1, h, w);
 			}
 		}
+		// Step 2: compute gradient for defmap
+		for (int mc = 0; mc < mix_num_; ++mc) {
+			for (int mp = 0; mp < mix_num_; ++mp) {
+				// ----  parent.defmap
+				Dtype* def_map_offset = bottom[1]->mutable_cpu_data() + bottom[1]->offset(n, (ctarget_-1)*mix_num_+mp);
+				Dtype* def_map_diff_offset = bottom[1]->mutable_cpu_diff() + bottom[1]->offset(n, (ctarget_-1)*mix_num_+mp);
+				caffe_axpy(height*width, pdefs[ctarget_-1],
+						maxout_diff_.cpu_diff()+maxout_diff_.offset(n, mc*mix_num_+mp),
+						def_map_diff_offset);
+				// ---- compute gradient for pdefs
+				pdefs_diff[ctarget_-1] += caffe_cpu_dot(height*width, maxout_diff_.cpu_diff()+maxout_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
+				//LOG(INFO) << "After";
+			} // end MP
+		} // end MC
 
-		LOG(INFO) << "IX: " << Ix_.shape_string();
-		LOG(INFO) << "top[0]: " << top[0]->shape_string();
+		//		LOG(INFO) << "IX: " << Ix_.shape_string();
+		//		LOG(INFO) << "top[0]: " << top[0]->shape_string();
+		//
+		//		const Dtype* Ix_data = Ix_.cpu_data();
+		//		int minval = 100000, maxval = -100000;
+		//		for (int i = 0; i < Ix_.count(); ++i){
+		//			if (Ix_data[i] < minval) {
+		//				minval = Ix_data[i];
+		//			} else if (Ix_data[i] > maxval) {
+		//				maxval = Ix_data[i];
+		//			}
+		//		}
+		//
+		//		LOG(INFO) << "min val: " << minval << " | maxval: " << maxval;
+		//
+		//		const Dtype* Iy_data = Iy_.cpu_data();
+		//		minval = 100000, maxval = -100000;
+		//		for (int i = 0; i < Iy_.count(); ++i){
+		//			if (Iy_data[i] < minval) {
+		//				minval = Iy_data[i];
+		//			} else if (Iy_data[i] > maxval) {
+		//				maxval = Iy_data[i];
+		//			}
+		//		}
+		//
+		//		LOG(INFO) << "min val: " << minval << " | maxval: " << maxval;
+		//
+		//		LOG(INFO) << "maxout_diff_: " << maxout_diff_.channels() << " | mid_diff_: " << mid_diff_.channels();
 
-		const Dtype* Ix_data = Ix_.cpu_data();
-		int minval = 100000, maxval = -100000;
-		for (int i = 0; i < Ix_.count(); ++i){
-			if (Ix_data[i] < minval) {
-				minval = Ix_data[i];
-			} else if (Ix_data[i] > maxval) {
-				maxval = Ix_data[i];
-			}
-		}
 
-		LOG(INFO) << "min val: " << minval << " | maxval: " << maxval;
 
-		const Dtype* Iy_data = Iy_.cpu_data();
-		minval = 100000, maxval = -100000;
-		for (int i = 0; i < Iy_.count(); ++i){
-			if (Iy_data[i] < minval) {
-				minval = Iy_data[i];
-			} else if (Iy_data[i] > maxval) {
-				maxval = Iy_data[i];
-			}
-		}
-
-		LOG(INFO) << "min val: " << minval << " | maxval: " << maxval;
-
-		LOG(INFO) << "maxout_diff_: " << maxout_diff_.channels() << " | mid_diff_: " << mid_diff_.channels();
 		// ---- compute gradient for dt
 		Dtype* 	child_unary_diff = unary_diff + bottom[0]->offset(n, child_-1);
-		for (int c = 0; c < mid_diff_.channels(); ++c){
+		for (int c = 0; c < maxout_diff_.channels(); ++c){
 			for (int h = 0; h < height; ++h) {
 				for (int w = 0; w < width; ++w) {
 					int diff_h = Iy_.data_at(n, c, h, w)-1;
 					int diff_w = Ix_.data_at(n, c, h, w)-1;
-					*(mid_diff + mid_diff_.offset(n, c, h, w)) += maxout_diff_.diff_at(n, c, diff_h, diff_w);
+					//	mid_diff[mid_diff_.offset(n, c, h, w)] += maxout_diff_.diff_at(n, c, diff_h, diff_w); // ??????????????//////
+					mid_diff[mid_diff_.offset(n, c, diff_h, diff_w)] += maxout_diff_.diff_at(n, c, h, w);
 				}
 			}
 			// ---- compute gradient for unary (child)
 			caffe_axpy(height*width, Dtype(1), mid_diff+mid_diff_.offset(n, c), child_unary_diff);
 		}
 
-		// ---- compute gradient for idpr map
+		std::stringstream outstream;
 		for (int mc = 0; mc < mix_num_; ++mc) {
 			for (int mp = 0; mp < mix_num_; ++mp) {
+				int 	channel_idx = mc*mix_num_+mp;
+				// ---- compute gradient for idpr map
+				const Dtype* def_map_offset = bottom[1]->cpu_data() + bottom[1]->offset(n, (ptarget_-1)*mix_num_+mc);
 				Dtype* cur_idpr_diff = idpr_diff + bottom[1]->offset(n, (ptarget_-1)*mix_num_+mc);
-				caffe_axpy(height*width, Dtype(1), mid_diff+mid_diff_.offset(n, mc*mix_num_+mp), cur_idpr_diff);
+				caffe_axpy(height*width, pdefs[ptarget_-1], mid_diff+mid_diff_.offset(n, mc*mix_num_+mp), cur_idpr_diff);
+				// ---- compute gradient for pdefs
+				Dtype diffval = caffe_cpu_dot(height*width, mid_diff_.cpu_diff()+mid_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
+				outstream << diffval << " ";
+				pdefs_diff[ptarget_-1] += caffe_cpu_dot(height*width, mid_diff_.cpu_diff()+mid_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
 
 				// ---- deformation weight child->parent
 				Dtype*	defw_diff_c = defw_diff + this->blobs_[0]->offset(0,0,(ptarget_-1)*mix_num_+mc);
 				// ---- deformation weight parent->child
 				Dtype*	defw_diff_p = defw_diff + this->blobs_[0]->offset(0,0,(ctarget_-1)*mix_num_+mp);
 
+				// This is wrong!!!!!!!!!!!!!!!
 				// Note: -defw[0]*dx^2 - defw[1]*dx - defw[2]*dy^2 - defw[3]*dy
 				for (int h = 0; h < height; ++h) {
 					for (int w = 0; w < width; ++w) {
-						int 	channel_idx = mc*mix_num_+mp;
 						Dtype dt_diff = maxout_diff_.diff_at(n, channel_idx, h, w);
 						Dtype dy = Iy_.data_at(n, channel_idx, h, w);
 						Dtype dx = Ix_.data_at(n, channel_idx, h, w);
 
-						defw_diff_c[0] = -dt_diff*square(dx); 	// ax_c: 2nd order
-						defw_diff_c[1] = dt_diff*dx;						// bx_c: 1st order
-						defw_diff_c[2] = -dt_diff*square(dy);		// ay_c
-						defw_diff_c[3] = dt_diff*dy;						// by_c
+						//						defw_diff_c[0] = -dt_diff*square(dx); 	// ax_c: 2nd order
+						//						defw_diff_c[1] = dt_diff*dx;						// bx_c: 1st order
+						//						defw_diff_c[2] = -dt_diff*square(dy);		// ay_c
+						//						defw_diff_c[3] = dt_diff*dy;						// by_c
+						//
+						//						defw_diff_p[0] = -dt_diff*square(dx);
+						//						defw_diff_p[1] = -dt_diff*dx;
+						//						defw_diff_p[2] = -dt_diff*square(dy);
+						//						defw_diff_p[3] = -dt_diff*dy;
 
-						defw_diff_p[0] = -dt_diff*square(dx);
-						defw_diff_p[1] = -dt_diff*dx;
-						defw_diff_p[2] = -dt_diff*square(dy);
-						defw_diff_p[3] = -dt_diff*dy;
+						defw_diff_c[0] -= dt_diff*square(dx); 	// ax_c: 2nd order
+						defw_diff_c[1] -= dt_diff*dx;						// bx_c: 1st order
+						defw_diff_c[2] -= dt_diff*square(dy);		// ay_c
+						defw_diff_c[3] -= dt_diff*dy;						// by_c
+
+						defw_diff_p[0] -= dt_diff*square(dx);
+						defw_diff_p[1] -= dt_diff*dx;
+						defw_diff_p[2] -= dt_diff*square(dy);
+						defw_diff_p[3] -= dt_diff*dy;
 					}
 				}
 			}
 		}
+		//	LOG(INFO) << "defw_diff val: \n" << outstream.str();
+
+
+	//	LOG(INFO) << "pdefs_diff[" << ptarget_-1 << "]: " << pdefs_diff[ptarget_-1]  << " | pdefs_diff[" << ctarget_-1 << "]: "<< pdefs_diff[ctarget_-1];
 
 	}
-
-
-
+//
+//	std::stringstream outstream;
+//  for (int i = 0; i < this->blobs_[1]->count(); ++i)
+//  	outstream << pdefs_diff[i] << " ";
+//  LOG(INFO) << "diff\n" << outstream.str();
 
 	LOG(INFO) << "End BP" ;
 
@@ -557,14 +632,14 @@ void MessagePassingLayer<Dtype>::dt1d(const Dtype *src, Dtype *dst, int *ptr, in
 				- b_c * -(q - v[k]) + a_c * (square(q) - square(v[k]))
 				- b_p * (q - v[k]) + a_p * (square(q) - square(v[k]))
 				+ 2*a_c * (q-v[k])*(-dshift_c) + 2*a_p * (q-v[k])*(dshift_p) )
-    		/ ( 2*a_c*(q-v[k]) + 2*a_p*(q-v[k]) );
+    						/ ( 2*a_c*(q-v[k]) + 2*a_p*(q-v[k]) );
 		while (s <= z[k]) {
 			k--;
 			s = ( (src[q*step] - src[v[k]*step])
 					- b_c * -(q - v[k]) + a_c * (square(q) - square(v[k]))
 					- b_p * (q - v[k]) + a_p * (square(q) - square(v[k]))
 					+ 2*a_c * (q-v[k])*(-dshift_c) + 2*a_p * (q-v[k])*(dshift_p) )
-      		/ ( 2*a_c*(q-v[k]) + 2*a_p*(q-v[k]) );
+      						/ ( 2*a_c*(q-v[k]) + 2*a_p*(q-v[k]) );
 		}
 		k++;
 		v[k]   = q;
@@ -577,7 +652,7 @@ void MessagePassingLayer<Dtype>::dt1d(const Dtype *src, Dtype *dst, int *ptr, in
 		while (z[k+1] < q)
 			k++;
 		dst[q*step] = src[v[k]*step] + a_c * square(q + dshift_c - v[k]) + b_c * -(q + dshift_c - v[k])
-    		+ a_p * square(q - dshift_p - v[k]) + b_p * (q - dshift_p - v[k]);
+    						+ a_p * square(q - dshift_p - v[k]) + b_p * (q - dshift_p - v[k]);
 		ptr[q*step] = v[k];
 	}
 
@@ -603,7 +678,7 @@ void MessagePassingLayer<Dtype>::dt1d(const Dtype *src, Dtype *dst, int *ptr, in
  * - Ix, Iy
  */
 template <typename Dtype>
-void MessagePassingLayer<Dtype>::distance_transform(const Dtype* vals, int sizx, int sizy,
+void MessagePassingLayer<Dtype>::distance_transform_cpu(const Dtype* vals, int sizx, int sizy,
 		const Dtype* defw_c, const Dtype* defw_p,
 		Dtype* mean_c, Dtype* var_c,
 		Dtype* mean_p, Dtype* var_p,
