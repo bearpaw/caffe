@@ -30,7 +30,6 @@ void EuclideanMapLossLayer<Dtype>::Reshape(
   this->label_index_ = this->layer_param_.euclidean_map_loss_param().label_index();
   this->pred_index_ = this->layer_param_.euclidean_map_loss_param().pred_index();
 	int num = bottom[pred_index_]->num();
-	int channels = bottom[pred_index_]->channels();
 
 	// Validation
   CHECK_EQ(bottom[pred_index_]->channels()*2, bottom[label_index_]->channels())
@@ -39,43 +38,21 @@ void EuclideanMapLossLayer<Dtype>::Reshape(
         << "Currently only support Gaussian maps in 2D (channels == 2n, n is the number of Gaussian maps).";
 
 
-  /*// bottom shape
-  LOG(INFO) << "bottom[" << pred_index_ << "]: " << bottom[pred_index_]->shape_string();
-  LOG(INFO) << "bottom[" << label_index_ << "]: " << bottom[label_index_]->shape_string();
-
-  LOG(INFO) << "sigma:" << sigma_;
-  LOG(INFO) << "input_h_:" << input_h_;
-  LOG(INFO) << "label_index_:" << label_index_;
-  LOG(INFO) << "pred_index_:" << pred_index_;*/
 
   // copy labels from bottom to points_
   points_.ReshapeLike(*bottom[label_index_]);
   points_.CopyFrom(*bottom[label_index_]);
 
- /* const Dtype* tmp = points_.cpu_data();
-  for (int i = 0; i < points_.count(); ++i) {
-  	LOG(INFO) << tmp[i];
-  }
-  LOG(INFO) << "========================";*/
 
 
   // reshape bottom[label_index_] as Gaussian map
-//  LOG(INFO) << "before reshape: " << bottom[label_index_]->shape_string ();
   bottom[label_index_]->ReshapeLike(*bottom[pred_index_]);
-
-//  LOG(INFO) << "after reshape: " << bottom[label_index_]->shape_string ();
 
   int out_h = bottom[pred_index_]->height();
   int out_w = bottom[pred_index_]->width();
 
-
-//  LOG(INFO) << "Out: " << out_h << " " << out_w;
-
   double scale_h = (double)out_h / input_h_;
   double scale_w = (double)out_w / input_w_;
-
-//  LOG(INFO) << "scale: " << scale_h << " " << scale_w;
-//  LOG(INFO) << points_.count();
 
   const Dtype* points_ptr = points_.cpu_data();
   Dtype* gmask = bottom[label_index_]->mutable_cpu_data();
@@ -85,9 +62,7 @@ void EuclideanMapLossLayer<Dtype>::Reshape(
     	offset = points_.offset(n);
     	x = points_ptr[offset]*scale_w;
     	y = points_ptr[offset+1]*scale_h;
-//    	LOG(INFO) << x << " " << y;
     	int btmoffset = bottom[label_index_]->offset(n);
-//    	LOG(INFO) << "btmoffset" << btmoffset;
 
     	generate_gaussian_mask(gmask+btmoffset, out_h, out_w, round(x), round(y), sigma_);
 
@@ -111,7 +86,6 @@ void EuclideanMapLossLayer<Dtype>::Reshape(
   }
 
 
-  /////
 
   LossLayer<Dtype>::Reshape(bottom, top);
   CHECK_EQ(bottom[0]->count(1), bottom[1]->count(1))

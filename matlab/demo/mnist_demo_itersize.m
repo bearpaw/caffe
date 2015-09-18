@@ -61,6 +61,8 @@ for e = 1:params.epoch
     res = solver.net.backward({diff});
     res = res{1};
     
+    wdiff = solver.net.params('ip2', 2).get_diff();
+    bdiff = solver.net.blobs('ip1').get_diff();
     if mod(iter, params.iter_size) == 0
       solver.update();
       solver.net.reset_params();

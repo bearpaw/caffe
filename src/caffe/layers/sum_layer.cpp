@@ -60,9 +60,9 @@ void SumLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 	int top_channels = top[0]->channels();
 	int top_height = top[0]->height();
 	int top_width = top[0]->width();
-	int top_count = top[0]->count();
+	//int top_count = top[0]->count();
 	int map_size = top_width*top_height;
-	int top_index, bottom_index;
+	//int top_index, bottom_index;
 	// compute global ids
 	int cnt = 0;
 	for (int c = 0; c < top_channels; ++c) {

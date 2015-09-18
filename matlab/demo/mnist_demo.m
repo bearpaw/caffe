@@ -59,8 +59,8 @@ for e = 1:params.epoch
 %     solver.net.reset_params(); % seems no use
     res = solver.net.backward({diff});
     res = res{1};
+    
     solver.update();
-
     if mod(iter, params.display) == 0
       fprintf('Iter %6d: Loss %.6f\n', iter, accloss/params.display);
       accloss = 0;

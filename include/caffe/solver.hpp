@@ -133,6 +133,7 @@ class WorkerSolver : public Solver<Dtype> {
   explicit WorkerSolver(const SolverParameter& param,
       const Solver<Dtype>* root_solver = NULL)
       : Solver<Dtype>(param, root_solver) {}
+  virtual void update_network() { ApplyUpdate(); ++this->iter_;}
 
  protected:
   void ApplyUpdate() {}

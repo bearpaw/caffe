@@ -89,9 +89,15 @@ methods
     %----------------------------------------------------------------------
     % visulize windows
     %----------------------------------------------------------------------
-    function show_window(this, num)
+    function show_window(this, num, thresh, show_sample)
       if nargin < 2
         num = this.db.imgcnt;
+      end
+      if nargin < 3
+        thresh = 0;
+      end
+      if nargin < 4
+        show_sample = 'all';
       end
       for i = 1:num
         [~, imname, ext] = fileparts(this.db.images(i).path);
@@ -104,7 +110,19 @@ methods
           x2 = this.db.images(i).x2(w);
           y1 = this.db.images(i).y1(w);
           y2 = this.db.images(i).y2(w);
-          plot([x1, x1, x2, x2, x1], [y1, y2, y2, y1, y1], 'color', wincolors(w, :)); hold on;
+          ov = this.db.images(i).overlap(w);
+          switch show_sample
+            case 'all'
+              plot([x1, x1, x2, x2, x1], [y1, y2, y2, y1, y1], 'color', wincolors(w, :)); hold on;
+            case 'pos'
+              if ov >= thresh
+                plot([x1, x1, x2, x2, x1], [y1, y2, y2, y1, y1], 'color', wincolors(w, :)); hold on;
+              end
+            case 'neg'           
+              if ov <= thresh
+                plot([x1, x1, x2, x2, x1], [y1, y2, y2, y1, y1], 'color', wincolors(w, :)); hold on;
+              end
+          end
         end
         fprintf('\n%d: %s\n', i, this.db.images(i).path);
         disp('Press any key to continue. Ctrl + c to exit');

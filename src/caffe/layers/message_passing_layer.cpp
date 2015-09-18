@@ -16,6 +16,8 @@
 namespace caffe {
 
 #define INF 1E20
+#define DEF_THRESH_ -1000
+#define MIN_DEFW_ 0.0001
 
 template <typename Dtype>
 static inline Dtype square(Dtype x) { return x*x; }
@@ -163,8 +165,17 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 	Dtype* 				max_Iy_ptr = max_Iy_.mutable_cpu_data(); // max Iy
 
 	int*					mask = max_idx_.mutable_cpu_data(); //maxscore mask
-	const Dtype* 	defw = this->blobs_[0]->cpu_data();
+	Dtype* 				defw = this->blobs_[0]->mutable_cpu_data();
 	const Dtype* 	pdefs = this->blobs_[1]->cpu_data();
+
+	// do not allow negative square weight for defw
+	for (int defc = 0; defc < this->blobs_[0]->height(); ++defc) {
+		Dtype* defw_offset = defw + this->blobs_[0]->offset(0, 0, defc);
+		if (defw_offset[0] < MIN_DEFW_)
+			defw_offset[0] = MIN_DEFW_;
+		if (defw_offset[2] < MIN_DEFW_)
+			defw_offset[2] = MIN_DEFW_;
+	}
 
 
 	cbid_ = std::find(nbh_IDs[child_-1].begin(), nbh_IDs[child_-1].end(), parent_) - nbh_IDs[child_-1].begin();
@@ -175,7 +186,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 	ptarget_ = target_IDs[child_-1][cbid_];
 	ctarget_ = target_IDs[parent_-1][pbid_];
 
-	LOG(INFO) << "ctarget : " << ctarget_ << " | ptarget: " << ptarget_;
+ //	LOG(INFO) << "ctarget : " << ctarget_ << " | ptarget: " << ptarget_;
 
 	/*	LOG(INFO) << "btm 0 shape: " << bottom[0]->shape_string();
 	LOG(INFO) << "btm 1 shape: " << bottom[1]->shape_string();*/
@@ -404,7 +415,9 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 						maxout_diff_.cpu_diff()+maxout_diff_.offset(n, mc*mix_num_+mp),
 						def_map_diff_offset);
 				// ---- compute gradient for pdefs
-				pdefs_diff[ctarget_-1] += caffe_cpu_dot(height*width, maxout_diff_.cpu_diff()+maxout_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
+				if (maxval(height*width, def_map_offset) > DEF_THRESH_) {
+					pdefs_diff[ctarget_-1] += caffe_cpu_dot(height*width, maxout_diff_.cpu_diff()+maxout_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
+				}
 				//LOG(INFO) << "After";
 			} // end MP
 		} // end MC
@@ -466,7 +479,9 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 				// ---- compute gradient for pdefs
 				Dtype diffval = caffe_cpu_dot(height*width, mid_diff_.cpu_diff()+mid_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
 				outstream << diffval << " ";
-				pdefs_diff[ptarget_-1] += caffe_cpu_dot(height*width, mid_diff_.cpu_diff()+mid_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
+				if (maxval(height*width, def_map_offset) > DEF_THRESH_) {
+					pdefs_diff[ptarget_-1] += caffe_cpu_dot(height*width, mid_diff_.cpu_diff()+mid_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
+				}
 
 				// ---- deformation weight child->parent
 				Dtype*	defw_diff_c = defw_diff + this->blobs_[0]->offset(0,0,(ptarget_-1)*mix_num_+mc);
@@ -491,15 +506,25 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 						//						defw_diff_p[2] = -dt_diff*square(dy);
 						//						defw_diff_p[3] = -dt_diff*dy;
 
-						defw_diff_c[0] -= dt_diff*square(dx); 	// ax_c: 2nd order
+//						defw_diff_c[0] -= dt_diff*square(dx); 	// ax_c: 2nd order
+//						defw_diff_c[1] += dt_diff*dx;						// bx_c: 1st order
+//						defw_diff_c[2] -= dt_diff*square(dy);		// ay_c
+//						defw_diff_c[3] += dt_diff*dy;						// by_c
+//
+//						defw_diff_p[0] -= dt_diff*square(dx);
+//						defw_diff_p[1] -= dt_diff*dx;
+//						defw_diff_p[2] -= dt_diff*square(dy);
+//						defw_diff_p[3] -= dt_diff*dy;
+
+						defw_diff_c[0] += dt_diff*square(dx); 	// ax_c: 2nd order
 						defw_diff_c[1] -= dt_diff*dx;						// bx_c: 1st order
-						defw_diff_c[2] -= dt_diff*square(dy);		// ay_c
+						defw_diff_c[2] += dt_diff*square(dy);		// ay_c
 						defw_diff_c[3] -= dt_diff*dy;						// by_c
 
-						defw_diff_p[0] -= dt_diff*square(dx);
-						defw_diff_p[1] -= dt_diff*dx;
-						defw_diff_p[2] -= dt_diff*square(dy);
-						defw_diff_p[3] -= dt_diff*dy;
+						defw_diff_p[0] += dt_diff*square(dx);
+						defw_diff_p[1] += dt_diff*dx;
+						defw_diff_p[2] += dt_diff*square(dy);
+						defw_diff_p[3] += dt_diff*dy;
 					}
 				}
 			}
@@ -725,6 +750,16 @@ void MessagePassingLayer<Dtype>::distance_transform_cpu(const Dtype* vals, int s
 	delete [] tmpIy;
 }
 
+template <typename Dtype>
+Dtype MessagePassingLayer<Dtype>::maxval(int len, const Dtype* vec){
+	Dtype max_value = -INF;
+	for(int i = 0; i < len; ++i) {
+		if(vec[i] > max_value) {
+			max_value = vec[i];
+		}
+	}
+	return max_value;
+}
 
 
 
