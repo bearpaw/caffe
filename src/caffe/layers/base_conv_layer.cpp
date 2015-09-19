@@ -28,7 +28,12 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   CHECK((!conv_param.has_stride() && conv_param.has_stride_h()
       && conv_param.has_stride_w())
       || (!conv_param.has_stride_h() && !conv_param.has_stride_w()))
-      << "Stride is stride OR stride_h and stride_w are required.";
+  		<< "Stride is stride OR stride_h and stride_w are required.";
+  // Added by ITF
+  CHECK((!conv_param.has_hole() && conv_param.has_hole_h()
+      && conv_param.has_hole_w())
+      || (!conv_param.has_hole_h() && !conv_param.has_hole_w()))
+      << "hole is hole OR hole_h and hole_w are required.";
   if (conv_param.has_kernel_size()) {
     kernel_h_ = kernel_w_ = conv_param.kernel_size();
   } else {
@@ -43,6 +48,12 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     pad_h_ = conv_param.pad_h();
     pad_w_ = conv_param.pad_w();
   }
+  if (!conv_param.has_hole_h()) {
+    hole_h_ = hole_w_ = conv_param.hole();
+  } else {
+    hole_h_ = conv_param.hole_h();
+    hole_w_ = conv_param.hole_w();
+  }
   if (!conv_param.has_stride_h()) {
     stride_h_ = stride_w_ = conv_param.stride();
   } else {
@@ -52,7 +63,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   // Special case: im2col is the identity for 1x1 convolution with stride 1
   // and no padding, so flag for skipping the buffer and transformation.
   is_1x1_ = kernel_w_ == 1 && kernel_h_ == 1
-      && stride_h_ == 1 && stride_w_ == 1 && pad_h_ == 0 && pad_w_ == 0;
+      && stride_h_ == 1 && stride_w_ == 1 && pad_h_ == 0 && pad_w_ == 0 && hole_h_ == 1 && hole_w_ == 1;
   // Configure output channels and groups.
   channels_ = bottom[0]->channels();
   num_output_ = this->layer_param_.convolution_param().num_output();
