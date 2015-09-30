@@ -393,7 +393,6 @@ class MessagePassingLayer : public Layer<Dtype> {
   		int32_t lenx, int32_t leny,
   		Dtype *M, int32_t *Ix, int32_t *Iy
   );
-  Dtype maxval(int len, const Dtype* vec);
 
   int         mix_num_;
   string      source_;

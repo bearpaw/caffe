@@ -301,29 +301,29 @@ static void net_get_attr(MEX_ARGS) {
   plhs[0] = mx_net_attr;
 }
 
-// Usage: caffe_('net_forward', hNet)
+// Usage: caffe_('reset_params', hNet)
 static void reset_params(MEX_ARGS) {
 	mxCHECK(nrhs == 1 && mxIsStruct(prhs[0]),
-	      "Usage: caffe_('net_forward', hNet)");
+	      "Usage: caffe_('reset_params', hNet)");
 	Net<float>* net = handle_to_ptr<Net<float> >(prhs[0]);
-
-	for (int i = 0; i < net->params().size(); ++i) {
-		shared_ptr<Blob<float> > blob = net->params()[i];
-		switch (Caffe::mode()) {
-		case Caffe::CPU:
-			caffe_set(blob->count(), static_cast<float>(0),
-					blob->mutable_cpu_diff());
-			break;
-		case Caffe::GPU:
-#ifndef CPU_ONLY
-			caffe_gpu_set(blob->count(), static_cast<float>(0),
-					blob->mutable_gpu_diff());
-#else
-			NO_GPU;
-#endif
-			break;
-		}
-	}
+	net->ClearParamDiffs();
+//	for (int i = 0; i < net->params().size(); ++i) {
+//		shared_ptr<Blob<float> > blob = net->params()[i];
+//		switch (Caffe::mode()) {
+//		case Caffe::CPU:
+//			caffe_set(blob->count(), static_cast<float>(0),
+//					blob->mutable_cpu_diff());
+//			break;
+//		case Caffe::GPU:
+//#ifndef CPU_ONLY
+//			caffe_gpu_set(blob->count(), static_cast<float>(0),
+//					blob->mutable_gpu_diff());
+//#else
+//			NO_GPU;
+//#endif
+//			break;
+//		}
+//	}
 }
 
 // Usage: caffe_('net_forward', hNet)

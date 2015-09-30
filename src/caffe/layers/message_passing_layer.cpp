@@ -18,9 +18,34 @@ namespace caffe {
 #define INF 1E20
 #define DEF_THRESH_ -1000
 #define MIN_DEFW_ 0.0001
+#define MIN_PDEFSW_ 0.0001
 
 template <typename Dtype>
 static inline Dtype square(Dtype x) { return x*x; }
+
+
+
+template <typename Dtype>
+static inline  Dtype maxval(int len, const Dtype* vec){
+	Dtype max_value = -INF;
+	for(int i = 0; i < len; ++i) {
+		if(vec[i] > max_value) {
+			max_value = vec[i];
+		}
+	}
+	return max_value;
+}
+
+template <typename Dtype>
+static inline  Dtype minval(int len, const Dtype* vec){
+	Dtype min_value = INF;
+	for(int i = 0; i < len; ++i) {
+		if(vec[i] < min_value) {
+			min_value = vec[i];
+		}
+	}
+	return min_value;
+}
 
 
 template <typename Dtype>
@@ -143,6 +168,10 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 	clock_t start, end;
 	start = clock();
 
+	// ---- clear IDPR diff
+	caffe_set(bottom[1]->count(), Dtype(0), bottom[1]->mutable_cpu_diff());
+
+
 	//LOG(INFO) << "Weight shape :" << this->blobs_[0]->shape_string();
 	std::stringstream outstream;
 	int num = bottom[0]->num();
@@ -166,7 +195,7 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
 	int*					mask = max_idx_.mutable_cpu_data(); //maxscore mask
 	Dtype* 				defw = this->blobs_[0]->mutable_cpu_data();
-	const Dtype* 	pdefs = this->blobs_[1]->cpu_data();
+	Dtype* 				pdefs = this->blobs_[1]->mutable_cpu_data();
 
 	// do not allow negative square weight for defw
 	for (int defc = 0; defc < this->blobs_[0]->height(); ++defc) {
@@ -177,9 +206,15 @@ void MessagePassingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 			defw_offset[2] = MIN_DEFW_;
 	}
 
+	// do not allow negative square weight for pdefs weight
+	for (int i = 0; i < this->blobs_[1]->count(); ++i) {
+		if (pdefs[i] < MIN_PDEFSW_)
+			pdefs[i] = MIN_PDEFSW_;
+	}
+
 
 	cbid_ = std::find(nbh_IDs[child_-1].begin(), nbh_IDs[child_-1].end(), parent_) - nbh_IDs[child_-1].begin();
-	pbid_ = std::find(nbh_IDs[parent_-1].begin(), nbh_IDs[parent_-1].end(), child_) - nbh_IDs[parent_-1].begin();
+	pbid_	 = std::find(nbh_IDs[parent_-1].begin(), nbh_IDs[parent_-1].end(), child_) - nbh_IDs[parent_-1].begin();
 
 	//	LOG(INFO) << "cbid: " << cbid_ << " | pbid: " << pbid_;
 
@@ -362,25 +397,31 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 	const Dtype* 	defw = this->blobs_[0]->cpu_data();
 	const Dtype* 	pdefs = this->blobs_[1]->cpu_data();
 
+	// ---- clear score map
+	caffe_set(bottom[0]->count(), Dtype(0), bottom[0]->mutable_cpu_diff());
+
 	// ---- copy unary score diff from next layer
+	//      which is d{ U(l_i|I) }
 	caffe_copy(top[0]->count(),
 			top[0]->cpu_diff(),
 			bottom[0]->mutable_cpu_diff());
 
-	// store diff for max{dt[(app_map + def_map)] + def_map}
+	// store diff for max{ dt[(app_map + def_map)]}
 	maxout_diff_.Reshape(num, mix_num_*mix_num_, height, width);
-	caffe_set(maxout_diff_.count(), Dtype(0), maxout_diff_.mutable_cpu_data());
+	caffe_set(maxout_diff_.count(), Dtype(0), maxout_diff_.mutable_cpu_diff());
 
 	// store diff for dt(app_map + def_map)
 	mid_diff_.Reshape(num, mix_num_*mix_num_, height, width);
-	caffe_set(mid_diff_.count(), Dtype(0), mid_diff_.mutable_cpu_data());
+	caffe_set(mid_diff_.count(), Dtype(0), mid_diff_.mutable_cpu_diff());
 
 	Dtype* unary_diff = bottom[0]->mutable_cpu_diff();
 	Dtype* idpr_diff = bottom[1]->mutable_cpu_diff();
-	Dtype* maxout_diff = maxout_diff_.mutable_cpu_diff();
-	Dtype* mid_diff = mid_diff_.mutable_cpu_diff();
 	Dtype* defw_diff = this->blobs_[0]->mutable_cpu_diff();
 	Dtype* pdefs_diff = this->blobs_[1]->mutable_cpu_diff();
+
+
+	Dtype* maxout_diff = maxout_diff_.mutable_cpu_diff();
+	Dtype* mid_diff = mid_diff_.mutable_cpu_diff();
 
 	//
 	//	std::stringstream outstream;
@@ -391,13 +432,17 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 		std::stringstream outstream;
 	  for (int i = 0; i < this->blobs_[1]->count(); ++i)
 	  	outstream << pdefs_diff[i] << " ";
-	  LOG(INFO) << "diff\n" << outstream.str();
+//	  LOG(INFO) << "diff\n" << outstream.str();
 
-	LOG(INFO) <<  "pdefs_diff: " << ctarget_-1 << " : " << ptarget_-1;
+//	LOG(INFO) <<  "pdefs_diff: " << ctarget_-1 << " : " << ptarget_-1;
+
+		Dtype maxmaxoutdiff = maxval(maxout_diff_.count(), maxout_diff);
+		Dtype minmaxoutdiff = minval(maxout_diff_.count(), maxout_diff);
+		LOG(INFO) << "clean maxout diff: max: "<< maxmaxoutdiff << " | min: " << minmaxoutdiff;
 
 	for(int n=0; n<num; ++n) {
 		Dtype* par_unary_diff = unary_diff + bottom[0]->offset(n, parent_-1);
-		// ---- compute gradient for max operation
+		// ---- Step 1: compute gradient for max operation
 		// Step 1: compute gradient for
 		for (int h = 0; h < height; ++h) {
 			for (int w = 0; w < width; ++w) {
@@ -405,7 +450,32 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 				maxout_diff[maxout_diff_.offset(n, max_channel_, h, w)] = top[0]->diff_at(n, parent_-1, h, w);
 			}
 		}
-		// Step 2: compute gradient for defmap
+		Dtype maxmaxoutdiff = maxval(maxout_diff_.count(), maxout_diff);
+		Dtype minmaxoutdiff = minval(maxout_diff_.count(), maxout_diff);
+		LOG(INFO) << "maxout diff: max: "<< maxmaxoutdiff << " | min: " << minmaxoutdiff;
+
+		// ---- Step 2: compute gradient for DT operation
+		Dtype* 	child_unary_diff = unary_diff + bottom[0]->offset(n, child_-1);
+		for (int c = 0; c < maxout_diff_.channels(); ++c){
+			for (int h = 0; h < height; ++h) {
+				for (int w = 0; w < width; ++w) {
+					int diff_h = Iy_.data_at(n, c, h, w)-1;
+					int diff_w = Ix_.data_at(n, c, h, w)-1;
+					//	mid_diff[mid_diff_.offset(n, c, h, w)] += maxout_diff_.diff_at(n, c, diff_h, diff_w); // ??????????????//////
+					mid_diff[mid_diff_.offset(n, c, diff_h, diff_w)] += maxout_diff_.diff_at(n, c, h, w);
+				}
+			}
+
+			// ---- Step 3: compute gradient for unary (child) (i.e., S_k(l_k|I))
+			caffe_axpy(height*width, Dtype(1), mid_diff+mid_diff_.offset(n, c), child_unary_diff);
+		}
+		////////////////// 需要normalization吗????  child_unary_diff
+//		caffe_scal(height*width, Dtype(1/maxout_diff_.channels()), child_unary_diff);
+//		Dtype maxcdiff = maxval(height*width, child_unary_diff);
+//		Dtype mincdiff = minval(height*width, child_unary_diff);
+//		LOG(INFO) << "Child_unary diff: max: "<< maxcdiff << " | min: " << mincdiff;
+
+		// ---- Step 4: compute gradient for IDPR map (parent.defMap{pbid}(:,:,mp))
 		for (int mc = 0; mc < mix_num_; ++mc) {
 			for (int mp = 0; mp < mix_num_; ++mp) {
 				// ----  parent.defmap
@@ -414,14 +484,15 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 				caffe_axpy(height*width, pdefs[ctarget_-1],
 						maxout_diff_.cpu_diff()+maxout_diff_.offset(n, mc*mix_num_+mp),
 						def_map_diff_offset);
+				//caffe_scal(height*width, Dtype(1/mix_num_/mix_num_), def_map_diff_offset); ///////////////////////////////// 2015-09-28
 				// ---- compute gradient for pdefs
 				if (maxval(height*width, def_map_offset) > DEF_THRESH_) {
-					pdefs_diff[ctarget_-1] += caffe_cpu_dot(height*width, maxout_diff_.cpu_diff()+maxout_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
+					pdefs_diff[ctarget_-1] += caffe_cpu_dot(height*width, maxout_diff+maxout_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
 				}
 				//LOG(INFO) << "After";
 			} // end MP
 		} // end MC
-
+//		pdefs_diff[ctarget_-1] = pdefs_diff[ctarget_-1]/mix_num_/mix_num_/width/height; ///////////////////////////////// 2015-09-28
 		//		LOG(INFO) << "IX: " << Ix_.shape_string();
 		//		LOG(INFO) << "top[0]: " << top[0]->shape_string();
 		//
@@ -452,22 +523,6 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 		//		LOG(INFO) << "maxout_diff_: " << maxout_diff_.channels() << " | mid_diff_: " << mid_diff_.channels();
 
 
-
-		// ---- compute gradient for dt
-		Dtype* 	child_unary_diff = unary_diff + bottom[0]->offset(n, child_-1);
-		for (int c = 0; c < maxout_diff_.channels(); ++c){
-			for (int h = 0; h < height; ++h) {
-				for (int w = 0; w < width; ++w) {
-					int diff_h = Iy_.data_at(n, c, h, w)-1;
-					int diff_w = Ix_.data_at(n, c, h, w)-1;
-					//	mid_diff[mid_diff_.offset(n, c, h, w)] += maxout_diff_.diff_at(n, c, diff_h, diff_w); // ??????????????//////
-					mid_diff[mid_diff_.offset(n, c, diff_h, diff_w)] += maxout_diff_.diff_at(n, c, h, w);
-				}
-			}
-			// ---- compute gradient for unary (child)
-			caffe_axpy(height*width, Dtype(1), mid_diff+mid_diff_.offset(n, c), child_unary_diff);
-		}
-
 		std::stringstream outstream;
 		for (int mc = 0; mc < mix_num_; ++mc) {
 			for (int mp = 0; mp < mix_num_; ++mp) {
@@ -475,10 +530,12 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 				// ---- compute gradient for idpr map
 				const Dtype* def_map_offset = bottom[1]->cpu_data() + bottom[1]->offset(n, (ptarget_-1)*mix_num_+mc);
 				Dtype* cur_idpr_diff = idpr_diff + bottom[1]->offset(n, (ptarget_-1)*mix_num_+mc);
-				caffe_axpy(height*width, pdefs[ptarget_-1], mid_diff+mid_diff_.offset(n, mc*mix_num_+mp), cur_idpr_diff);
+				caffe_axpy(height*width, pdefs[ptarget_-1],
+						mid_diff+mid_diff_.offset(n, mc*mix_num_+mp),
+						cur_idpr_diff);
 				// ---- compute gradient for pdefs
-				Dtype diffval = caffe_cpu_dot(height*width, mid_diff_.cpu_diff()+mid_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
-				outstream << diffval << " ";
+//				Dtype diffval = caffe_cpu_dot(height*width, mid_diff_.cpu_diff()+mid_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
+//				outstream << diffval << " ";
 				if (maxval(height*width, def_map_offset) > DEF_THRESH_) {
 					pdefs_diff[ptarget_-1] += caffe_cpu_dot(height*width, mid_diff_.cpu_diff()+mid_diff_.offset(n, mc*mix_num_+mp), def_map_offset);
 				}
@@ -506,29 +563,42 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 						//						defw_diff_p[2] = -dt_diff*square(dy);
 						//						defw_diff_p[3] = -dt_diff*dy;
 
-//						defw_diff_c[0] -= dt_diff*square(dx); 	// ax_c: 2nd order
-//						defw_diff_c[1] += dt_diff*dx;						// bx_c: 1st order
-//						defw_diff_c[2] -= dt_diff*square(dy);		// ay_c
-//						defw_diff_c[3] += dt_diff*dy;						// by_c
+						defw_diff_c[0] -= dt_diff*square(dx); 	// ax_c: 2nd order
+						defw_diff_c[1] += dt_diff*dx;						// bx_c: 1st order
+						defw_diff_c[2] -= dt_diff*square(dy);		// ay_c
+						defw_diff_c[3] += dt_diff*dy;						// by_c
+
+						defw_diff_p[0] -= dt_diff*square(dx);
+						defw_diff_p[1] -= dt_diff*dx;
+						defw_diff_p[2] -= dt_diff*square(dy);
+						defw_diff_p[3] -= dt_diff*dy;
+
+//						defw_diff_c[0] += dt_diff*square(dx); 	// ax_c: 2nd order
+//						defw_diff_c[1] -= dt_diff*dx;						// bx_c: 1st order
+//						defw_diff_c[2] += dt_diff*square(dy);		// ay_c
+//						defw_diff_c[3] -= dt_diff*dy;						// by_c
 //
-//						defw_diff_p[0] -= dt_diff*square(dx);
-//						defw_diff_p[1] -= dt_diff*dx;
-//						defw_diff_p[2] -= dt_diff*square(dy);
-//						defw_diff_p[3] -= dt_diff*dy;
-
-						defw_diff_c[0] += dt_diff*square(dx); 	// ax_c: 2nd order
-						defw_diff_c[1] -= dt_diff*dx;						// bx_c: 1st order
-						defw_diff_c[2] += dt_diff*square(dy);		// ay_c
-						defw_diff_c[3] -= dt_diff*dy;						// by_c
-
-						defw_diff_p[0] += dt_diff*square(dx);
-						defw_diff_p[1] += dt_diff*dx;
-						defw_diff_p[2] += dt_diff*square(dy);
-						defw_diff_p[3] += dt_diff*dy;
+//						defw_diff_p[0] += dt_diff*square(dx);
+//						defw_diff_p[1] += dt_diff*dx;
+//						defw_diff_p[2] += dt_diff*square(dy);
+//						defw_diff_p[3] += dt_diff*dy;
 					}
 				}
+				int defwnorm = height*width;
+				defw_diff_c[0] /= defwnorm; 	// ax_c: 2nd order
+				defw_diff_c[1] /= defwnorm;						// bx_c: 1st order
+				defw_diff_c[2] /= defwnorm;		// ay_c
+				defw_diff_c[3] /= defwnorm;						// by_c
+
+				defw_diff_p[0] /= defwnorm;
+				defw_diff_p[1] /= defwnorm;
+				defw_diff_p[2] /= defwnorm;
+				defw_diff_p[3] /= defwnorm;
 			}
 		}
+//		pdefs_diff[ptarget_-1] = pdefs_diff[ptarget_-1]/mix_num_/mix_num_/height/width; ///////////////////////////////// 2015-09-28
+
+
 		//	LOG(INFO) << "defw_diff val: \n" << outstream.str();
 
 
@@ -748,17 +818,6 @@ void MessagePassingLayer<Dtype>::distance_transform_cpu(const Dtype* vals, int s
 	// ---- fix the memory leak bug (Wei Yang Aug 10, 2015)
 	delete [] tmpM;
 	delete [] tmpIy;
-}
-
-template <typename Dtype>
-Dtype MessagePassingLayer<Dtype>::maxval(int len, const Dtype* vec){
-	Dtype max_value = -INF;
-	for(int i = 0; i < len; ++i) {
-		if(vec[i] > max_value) {
-			max_value = vec[i];
-		}
-	}
-	return max_value;
 }
 
 
