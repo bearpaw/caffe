@@ -1,91 +1,149 @@
 classdef DB < handle
-% Window data layer train/test data parser
-% -----------------
-% USAGE
-% -----------------
-%   parser = window_data.DB('path_to_window_data_file', quitemode=0 or 1);
-%   db = parser.get_db();
-%   parser.show_window();
-%
-% Data structure
-% -----------------
-%     db = 
-%         dbpath: 'path_to_window_data_file'
-%         imgcnt: 14218
-%         wincnt: 1112436
-%         images: [1x14218 struct]
-% -----------------
-%     db.images(i) =
-%             path: 'path_to_image.jpg'
-%         channels: 3
-%           height: 160
-%            width: 70
-%         nwindows: 26
-%          classid: [26x1 int32]
-%          overlap: [26x1 double]
-%               x1: [26x1 int32]
-%               y1: [26x1 int32]
-%               x2: [26x1 int32]
-%               y2: [26x1 int32]
-% -----------------   
-% platero.yang (at) gmail.com, Feb 12, 2015
-% -----------------
-    
-properties (Access = private)
+  % Window data layer train/test data parser
+  % -----------------
+  % USAGE
+  % -----------------
+  %   parser = window_data.DB('path_to_window_data_file', quitemode=0 or 1);
+  %   db = parser.get_db();
+  %   parser.show_window();
+  %
+  % Data structure
+  % -----------------
+  %     db =
+  %         dbpath: 'path_to_window_data_file'
+  %         imgcnt: 14218
+  %         wincnt: 1112436
+  %         images: [1x14218 struct]
+  % -----------------
+  %     db.images(i) =
+  %             path: 'path_to_image.jpg'
+  %         channels: 3
+  %           height: 160
+  %            width: 70
+  %         nwindows: 26
+  %          classid: [26x1 int32]
+  %          overlap: [26x1 double]
+  %               x1: [26x1 int32]
+  %               y1: [26x1 int32]
+  %               x2: [26x1 int32]
+  %               y2: [26x1 int32]
+  % -----------------
+  % platero.yang (at) gmail.com, Feb 12, 2015
+  % -----------------
+  
+  properties (Access = private)
     db % window dataset
-end
-
-methods
+  end
+  
+  methods
     %----------------------------------------------------------------------
     % Constructor
     %----------------------------------------------------------------------
     function this = DB(filename, quietmode)
-        this.db.dbpath = filename;
-        this.db.imgcnt = 0;
-        this.db.wincnt = 0;
+      this.db.dbpath = filename;
+      this.db.imgcnt = 0;
+      this.db.wincnt = 0;
+      
+      dbfile = fopen(this.db.dbpath, 'r');
+      if dbfile == -1
+        fprintf('Cannot open db: %s\n', this.db.dbpath);
+      end
+      
+      while ~feof(dbfile)
+        newline = fgetl(dbfile);
+        this.db.imgcnt = this.db.imgcnt + 1;
+        this.db.images(this.db.imgcnt).path = fgetl(dbfile);
+        this.db.images(this.db.imgcnt).channels = str2num(fgetl(dbfile));
+        this.db.images(this.db.imgcnt).height = str2num(fgetl(dbfile));
+        this.db.images(this.db.imgcnt).width = str2num(fgetl(dbfile));
+        this.db.images(this.db.imgcnt).nwindows = str2num(fgetl(dbfile));
         
-        dbfile = fopen(this.db.dbpath, 'r');
-        if dbfile == -1
-            fprintf('Cannot open db: %s\n', this.db.dbpath);
+        if ~quietmode
+          fprintf('%.8d %s | %d\n', this.db.imgcnt, this.db.images(this.db.imgcnt).path, this.db.images(this.db.imgcnt).nwindows)
         end
-
-        while ~feof(dbfile)
-            newline = fgetl(dbfile);
-            this.db.imgcnt = this.db.imgcnt + 1;
-            this.db.images(this.db.imgcnt).path = fgetl(dbfile);
-            this.db.images(this.db.imgcnt).channels = str2num(fgetl(dbfile));
-            this.db.images(this.db.imgcnt).height = str2num(fgetl(dbfile));
-            this.db.images(this.db.imgcnt).width = str2num(fgetl(dbfile));
-            this.db.images(this.db.imgcnt).nwindows = str2num(fgetl(dbfile));
-            
-            if ~quietmode
-              fprintf('%.8d %s | %d\n', this.db.imgcnt, this.db.images(this.db.imgcnt).path, this.db.images(this.db.imgcnt).nwindows)
-            end
-            this.db.wincnt = this.db.wincnt + this.db.images(this.db.imgcnt).nwindows;
-            
-            if this.db.images(this.db.imgcnt).nwindows > 0
-                % read windows
-                w = textscan(dbfile, '%d %f %d %d %d %d', this.db.images(this.db.imgcnt).nwindows);
-                this.db.images(this.db.imgcnt).classid = w{1};
-                this.db.images(this.db.imgcnt).overlap = w{2};
-                this.db.images(this.db.imgcnt).x1 = w{3};
-                this.db.images(this.db.imgcnt).y1 = w{4};
-                this.db.images(this.db.imgcnt).x2 = w{5};
-                this.db.images(this.db.imgcnt).y2 = w{6};
-                % fix flush
-                fgetl(dbfile);
-            end
+        this.db.wincnt = this.db.wincnt + this.db.images(this.db.imgcnt).nwindows;
+        
+        if this.db.images(this.db.imgcnt).nwindows > 0
+          % read windows
+          w = textscan(dbfile, '%d %f %d %d %d %d', this.db.images(this.db.imgcnt).nwindows);
+          this.db.images(this.db.imgcnt).classid = w{1};
+          this.db.images(this.db.imgcnt).overlap = w{2};
+          this.db.images(this.db.imgcnt).x1 = w{3};
+          this.db.images(this.db.imgcnt).y1 = w{4};
+          this.db.images(this.db.imgcnt).x2 = w{5};
+          this.db.images(this.db.imgcnt).y2 = w{6};
+          % fix flush
+          fgetl(dbfile);
         end
-        fclose(dbfile);
+      end
+      fclose(dbfile);
     end
     
     %----------------------------------------------------------------------
-    % get window_data dataset    
+    % get window_data dataset
     %----------------------------------------------------------------------
     function db = get_db(this)
-        db = this.db;
+      db = this.db;
     end
+    
+    %----------------------------------------------------------------------
+    % get positive window number
+    %----------------------------------------------------------------------
+    function cnt = pos_num(this, thresh)
+      cnt = 0;
+      for i = 1:this.db.imgcnt
         
+        for w = 1:this.db.images(i).nwindows
+          ov = this.db.images(i).overlap(w);
+          if ov >= thresh
+            cnt = cnt + 1;
+          end
+        end
+      end
+    end
+    %----------------------------------------------------------------------
+    % get negative window number
+    %----------------------------------------------------------------------
+    function cnt = neg_num(this, thresh)
+      cnt = 0;
+      for i = 1:this.db.imgcnt
+        
+        for w = 1:this.db.images(i).nwindows
+          ov = this.db.images(i).overlap(w);
+          if ov <= thresh
+            cnt = cnt + 1;
+          end
+        end
+      end
+    end
+    
+    %----------------------------------------------------------------------
+    % Get windows
+    %----------------------------------------------------------------------
+    function [patches, labels] = get_window(this, index, thresh, warpx, warpy)
+      im = imread(this.db.images(index).path);
+      [imh, imw, imc] = size(im);
+      
+      patches = zeros(warpy, warpx, imc, this.db.images(index).nwindows, 'uint8');
+      labels  = zeros(1, this.db.images(index).nwindows);
+      
+      for w = 1:this.db.images(index).nwindows
+        % ---- get patch
+        x1 = this.db.images(index).x1(w);
+        x2 = this.db.images(index).x2(w);
+        y1 = this.db.images(index).y1(w);
+        y2 = this.db.images(index).y2(w);
+        patches(:,:,:,w) = imresize(im(y1:y2, x1:x2, :), [warpy, warpx]);
+        % ---- get label
+        ov = this.db.images(index).overlap(w);        
+        assert(x1>0 && y1>0 && x2 < imw && y2 < imh, 'window out of boundary');        
+        if ov >= thresh
+          labels(w) = this.db.images(index).classid(w);
+        else
+          labels(w) = 0;
+        end
+      end
+    end
     %----------------------------------------------------------------------
     % visulize windows
     %----------------------------------------------------------------------
@@ -118,7 +176,7 @@ methods
               if ov >= thresh
                 plot([x1, x1, x2, x2, x1], [y1, y2, y2, y1, y1], 'color', wincolors(w, :)); hold on;
               end
-            case 'neg'           
+            case 'neg'
               if ov <= thresh
                 plot([x1, x1, x2, x2, x1], [y1, y2, y2, y1, y1], 'color', wincolors(w, :)); hold on;
               end
@@ -130,5 +188,5 @@ methods
       end
     end
     
-end
+  end
 end
