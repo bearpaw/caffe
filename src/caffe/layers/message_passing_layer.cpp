@@ -17,13 +17,22 @@ namespace caffe {
 
 #define INF 1E20
 #define DEF_THRESH_ -1000
-#define MIN_DEFW_ 0.0001
-#define MIN_PDEFSW_ 0.0001
+#define MIN_DEFW_ 0.01
+#define MIN_PDEFSW_ 0.01
 
 template <typename Dtype>
 static inline Dtype square(Dtype x) { return x*x; }
 
-
+template <typename Dtype>
+static inline  Dtype maxabsval(int len, const Dtype* vec){
+	Dtype max_value = -INF;
+	for(int i = 0; i < len; ++i) {
+		if(fabs(vec[i]) > max_value) {
+			max_value = fabs(vec[i]);
+		}
+	}
+	return max_value;
+}
 
 template <typename Dtype>
 static inline  Dtype maxval(int len, const Dtype* vec){
@@ -450,8 +459,15 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 				maxout_diff[maxout_diff_.offset(n, max_channel_, h, w)] = top[0]->diff_at(n, parent_-1, h, w);
 			}
 		}
+
+		Dtype maxoutnorm = maxabsval(maxout_diff_.count(), maxout_diff);
+		if (maxoutnorm > 1) {
+			caffe_scal(maxout_diff_.count(), 1/maxoutnorm, maxout_diff);
+		}
+
 		Dtype maxmaxoutdiff = maxval(maxout_diff_.count(), maxout_diff);
 		Dtype minmaxoutdiff = minval(maxout_diff_.count(), maxout_diff);
+		LOG(INFO) << "maxout norm: " << maxoutnorm;
 		LOG(INFO) << "maxout diff: max: "<< maxmaxoutdiff << " | min: " << minmaxoutdiff;
 
 		// ---- Step 2: compute gradient for DT operation
@@ -465,10 +481,19 @@ void MessagePassingLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 					mid_diff[mid_diff_.offset(n, c, diff_h, diff_w)] += maxout_diff_.diff_at(n, c, h, w);
 				}
 			}
-
 			// ---- Step 3: compute gradient for unary (child) (i.e., S_k(l_k|I))
 			caffe_axpy(height*width, Dtype(1), mid_diff+mid_diff_.offset(n, c), child_unary_diff);
 		}
+
+		Dtype midnorm = maxabsval(mid_diff_.count(), mid_diff);
+		if (midnorm > 1) {
+			caffe_scal(mid_diff_.count(), 1/midnorm, mid_diff);
+		}
+
+		Dtype maxmiddiff = maxval(mid_diff_.count(), mid_diff);
+		Dtype minmiddiff = minval(mid_diff_.count(), mid_diff);
+		LOG(INFO) << "mid norm: " << midnorm;
+		LOG(INFO) << "mid diff: max: "<< maxmiddiff << " | min: " << minmiddiff;
 		////////////////// 需要normalization吗????  child_unary_diff
 //		caffe_scal(height*width, Dtype(1/maxout_diff_.channels()), child_unary_diff);
 //		Dtype maxcdiff = maxval(height*width, child_unary_diff);

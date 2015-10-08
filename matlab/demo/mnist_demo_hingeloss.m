@@ -114,6 +114,7 @@ fprintf('Accuracy: %0.3f%%\n', acc * 100);
 % -------------------------------------------------------------------------
 function [loss, bottom_diff] = myhingeloss(predictions, label, norm)
 % -------------------------------------------------------------------------
+% reference: caffe hinge_loss_layer
 if nargin < 4
   norm = 'L1';
 end
