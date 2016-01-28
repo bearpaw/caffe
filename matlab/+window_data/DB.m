@@ -39,10 +39,21 @@ classdef DB < handle
     %----------------------------------------------------------------------
     % Constructor
     %----------------------------------------------------------------------
-    function this = DB(filename, quietmode)
+    function this = DB(filename, quietmode, fgth, bgth)
       this.db.dbpath = filename;
       this.db.imgcnt = 0;
       this.db.wincnt = 0;
+      this.db.labelhist = containers.Map({0}, [0] );
+      
+      if ~exist('fgth', 'var')
+        fgth = 0.5;
+      end
+      
+      if ~exist('bgth', 'var')
+        bgth = 0.5;
+      end
+      
+      assert(fgth >= bgth, 'fg threshold < bg threshold');
       
       dbfile = fopen(this.db.dbpath, 'r');
       if dbfile == -1
@@ -54,8 +65,8 @@ classdef DB < handle
         this.db.imgcnt = this.db.imgcnt + 1;
         this.db.images(this.db.imgcnt).path = fgetl(dbfile);
         this.db.images(this.db.imgcnt).channels = str2num(fgetl(dbfile));
-        this.db.images(this.db.imgcnt).height = str2num(fgetl(dbfile));
         this.db.images(this.db.imgcnt).width = str2num(fgetl(dbfile));
+        this.db.images(this.db.imgcnt).height = str2num(fgetl(dbfile));
         this.db.images(this.db.imgcnt).nwindows = str2num(fgetl(dbfile));
         
         if ~quietmode
@@ -72,6 +83,48 @@ classdef DB < handle
           this.db.images(this.db.imgcnt).y1 = w{4};
           this.db.images(this.db.imgcnt).x2 = w{5};
           this.db.images(this.db.imgcnt).y2 = w{6};
+          
+          %           for w = 1:this.db.images(this.db.imgcnt).nwindows
+          %             ov = this.db.images(this.db.imgcnt).overlap(w);
+          %             cls = this.db.images(this.db.imgcnt).classid(w);
+          %             if ov >= fgth
+          %               if ~isKey(this.db.labelhist, cls)
+          %                 this.db.labelhist(cls) = 1;
+          %               end
+          %               this.db.labelhist(cls) = this.db.labelhist(cls) + 1;
+          %             elseif ov <= bgth
+          %               this.db.labelhist(0) = this.db.labelhist(0) + 1;
+          %             end
+          %           end
+          
+          %           iminfo = this.db.images(this.db.imgcnt);
+          %           width = this.db.images(this.db.imgcnt).width;
+          %           height = this.db.images(this.db.imgcnt).height;
+          %           xmin = min(this.db.images(this.db.imgcnt).x1);
+          %           ymin = min(this.db.images(this.db.imgcnt).y1);
+          %           xmax = max(this.db.images(this.db.imgcnt).x2);
+          %           ymax = max(this.db.images(this.db.imgcnt).y2);
+          %           if xmin <=0 || ymin <=0 || ...
+          %               xmax > width || ...
+          %               ymax > height
+          %             fprintf('%d\n', this.db.imgcnt);
+          %             this.db.images(this.db.imgcnt).path
+          %             im = imread(this.db.images(this.db.imgcnt).path);
+          %             clf; imagesc(im); axis image; hold on;
+          %             for w = 1:this.db.images(this.db.imgcnt).nwindows
+          %               x1 = this.db.images(this.db.imgcnt).x1(w);
+          %               x2 = this.db.images(this.db.imgcnt).x2(w);
+          %               y1 = this.db.images(this.db.imgcnt).y1(w);
+          %               y2 = this.db.images(this.db.imgcnt).y2(w);
+          %               ov = this.db.images(this.db.imgcnt).overlap(w);
+          %
+          % %               if x1 <=0 || y1 <= 0 || x2 > width || y2 > height
+          %                 plot([x1, x1, x2, x2, x1], [y1, y2, y2, y1, y1], 'color', 'red'); hold on;
+          %                 pause;
+          % %               end
+          %             end
+          %             pause;
+          %           end
           % fix flush
           fgetl(dbfile);
         end
@@ -135,8 +188,8 @@ classdef DB < handle
         y2 = this.db.images(index).y2(w);
         patches(:,:,:,w) = imresize(im(y1:y2, x1:x2, :), [warpy, warpx]);
         % ---- get label
-        ov = this.db.images(index).overlap(w);        
-        assert(x1>0 && y1>0 && x2 < imw && y2 < imh, 'window out of boundary');        
+        ov = this.db.images(index).overlap(w);
+        assert(x1>0 && y1>0 && x2 < imw && y2 < imh, 'window out of boundary');
         if ov >= thresh
           labels(w) = this.db.images(index).classid(w);
         else
@@ -187,6 +240,46 @@ classdef DB < handle
         pause; close;
       end
     end
-    
+    %----------------------------------------------------------------------
+    % show windows by ID
+    %----------------------------------------------------------------------
+    function show_window_by_class(this, num, thresh, cls)
+      if nargin < 2
+        num = this.db.imgcnt;
+      end
+      if nargin < 3
+        thresh = 0;
+      end
+      if nargin < 4
+        show_sample = 'all';
+      end
+      cnt = 1;
+      for i = 1:this.db.imgcnt
+        [~, imname, ext] = fileparts(this.db.images(i).path);
+        idx = find(this.db.images(i).classid == cls);
+        if isempty(idx)
+          continue;
+        else
+          cnt = cnt + 1;
+          im = imread(this.db.images(i).path);
+          for curidx = 1:length(idx)
+            w = idx(curidx);
+            x1 = this.db.images(i).x1(w);
+            x2 = this.db.images(i).x2(w);
+            y1 = this.db.images(i).y1(w);
+            y2 = this.db.images(i).y2(w);
+            ov = this.db.images(i).overlap(w);
+            
+            if ov >= thresh
+              patch = im(y1:y2, x1:x2,:);
+              imshow(patch); pause;
+            end
+          end
+        end
+        if cnt > num
+          break;
+        end
+      end
+    end
   end
 end
