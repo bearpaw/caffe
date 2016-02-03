@@ -394,6 +394,15 @@ message LayerParameter {
   optional ThresholdParameter threshold_param = 128;
   optional TileParameter tile_param = 138;
   optional WindowDataParameter window_data_param = 129;
+  // wyang dev  
+  optional LabelDropoutParameter label_dropout_param = 1109;
+}
+
+// Message that stores parameters used by LabelDropoutLayer
+message LabelDropoutParameter {
+  optional float drop_neg_ratio = 1 [default = 1];
+  optional float hard_ratio = 2;
+  optional float rand_ratio = 3;
 }
 
 // Message that stores parameters used to apply transformation
