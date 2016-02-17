@@ -35,9 +35,9 @@ DEFINE_string(backend, "lmdb",
         "The backend {lmdb, leveldb} for storing the result");
 DEFINE_string(varname, "",
         "The variable name to be read in the mat file");
-DEFINE_int32(channels, 2, "Array dimensionality.");
-DEFINE_int32(height, -1, "Array dimensionality.");
-DEFINE_int32(width, -1, "Array dimensionality.");
+DEFINE_int32(channels, 2, "Array channels.");
+DEFINE_int32(height, -1, "Array height.");
+DEFINE_int32(width, -1, "Array width.");
 //DEFINE_string(sizes, "", "Array of integers specifying an n-dimensional array shape (seperate by ,).");
 DEFINE_bool(check_size, false,
     "When this option is on, check that all the datum have the same size");
@@ -130,14 +130,14 @@ int main(int argc, char** argv) {
     }
     if (check_size) {
     	LOG(INFO) << datum.channels() <<" " <<  datum.height() << " " << datum.width();
-      if (!data_size_initialized) {
-        data_size = datum.channels() * datum.height() * datum.width();
-        data_size_initialized = true;
-      } else {
-        const std::string& data = datum.data();
-        CHECK_EQ(data.size(), data_size) << "Incorrect data field size "
-            << data.size();
-      }
+//      if (!data_size_initialized) {
+//        data_size = datum.channels() * datum.height() * datum.width();
+//        data_size_initialized = true;
+//      } else {
+//        const std::string& data = datum.data();
+//        CHECK_EQ(data.size(), data_size) << "Incorrect data field size "
+//            << data.size();
+//      }
     }
     // sequential
     int length = snprintf(key_cstr, kMaxKeyLength, "%08d_%s", line_id,

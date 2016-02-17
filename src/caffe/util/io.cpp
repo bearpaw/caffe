@@ -204,7 +204,11 @@ bool ReadMatlabToDatum(const string& filename, const int label,
 			datum->clear_float_data();
 			datum->set_encoded(false);
 			int datum_size = channels * height * width;
-			datum->mutable_float_data()->Reserve(datum_size); // allocate datum size
+			// allocate datum size
+			for (int i = 0; i < datum_size; ++i) {
+				datum->add_float_data(1.0);
+			}
+			//datum->mutable_float_data()->Reserve(datum_size);
 			int index = 0;
 			for (int c = 0; c < channels; ++c) {
 				for (int w = 0; w < width; ++w) {
