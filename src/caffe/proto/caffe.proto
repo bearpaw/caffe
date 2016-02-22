@@ -396,7 +396,17 @@ message LayerParameter {
   optional WindowDataParameter window_data_param = 129;
   // wyang dev  
   optional LabelDropoutParameter label_dropout_param = 1109;
-  optional LabelMapParameter label_map_param = 1110;
+  optional LabelMapParameter label_map_param = 1110;  
+  optional ResizeParameter resize_param = 1111;
+}
+
+// Message that stores parameters used by ResizeLayer
+message ResizeParameter{
+	optional uint32 height = 1;
+	optional uint32 width = 2;
+	optional bool  is_pyramid_test = 3 [default = false];
+	optional float out_height_scale = 4;
+	optional float out_width_scale = 5;
 }
 
 // Message that stores parameters used by LabelDropoutLayer
