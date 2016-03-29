@@ -28,6 +28,8 @@ void LabelMapLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
 	new_height_ = this->layer_param_.label_map_param().new_height();
 	new_width_  = this->layer_param_.label_map_param().new_width();
+	old_height_ = this->layer_param_.label_map_param().old_height();
+	old_width_  = this->layer_param_.label_map_param().old_width();
 	num_output_  = this->layer_param_.label_map_param().num_output();
 	sigma_ = this->layer_param_.label_map_param().sigma();
 	float_min_ = this->layer_param_.label_map_param().float_min();
@@ -38,6 +40,7 @@ void LabelMapLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 	const string& source = this->layer_param_.label_map_param().source();
 	LOG(INFO) << "Opening file " << source;
 	std::ifstream infile(source.c_str());
+	CHECK(infile.is_open()) << "label map file: " << source << " cannot be opened.";
 	vector<tuple > points;
 	std::string line_id;
 	int pts_num, map_id, x, y;
@@ -140,6 +143,7 @@ void LabelMapLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
 
 	const int lines_size = lines_.size();
 	for (int item_id = 0; item_id < batch_size_; ++item_id) {
+//		LOG(INFO) << "Start " << item_id;
 		// get a blob
 		timer.Start();
 		CHECK_GT(lines_size, lines_id_);
@@ -153,7 +157,14 @@ void LabelMapLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
 			int map_idx = points[p].x;
 			int x = points[p].y;
 			int y = points[p].z;
-			//    	LOG(INFO) << points[p].x << " " << points[p].y << " " << points[p].z;
+//			LOG(INFO) << "map_idx: " << map_idx << " | x: " << x << "  | y: " << y;
+
+			if (old_height_ != 0 || old_width_ != 0) {
+				// rescale
+				x = x * new_width_ / old_width_;
+				y = y * new_height_ / old_height_;
+			}
+//			LOG(INFO) << "map_idx: " << map_idx << " | x: " << x << "  | y: " << y;
 			Dtype* gmask = prefetch_data + batch->data_.offset(item_id, map_idx);
 			for (int h = 0; h < new_height_; ++h) {
 				for (int w = 0; w < new_width_; ++w) {
@@ -184,7 +195,7 @@ void LabelMapLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
 
 			}
 
-		}
+		} // end points
 		read_time += timer.MicroSeconds();
 		// go to the next iter
 		lines_id_++;
@@ -196,6 +207,7 @@ void LabelMapLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
 				ShuffleData();
 			}
 		}
+//		LOG(INFO) << "Finish " << item_id;
 	}
 	batch_timer.Stop();
 	DLOG(INFO) << "Prefetch batch:    " << batch_timer.MilliSeconds() << " ms.";

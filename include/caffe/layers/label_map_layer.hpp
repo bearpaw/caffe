@@ -50,6 +50,8 @@ class LabelMapLayer : public BasePrefetchingDataLayer<Dtype> {
   vector<vector<tuple > > lines_;
   int lines_id_;
   int num_output_;
+  int old_height_;
+  int old_width_;
   int new_height_;
   int new_width_;
   int batch_size_;
