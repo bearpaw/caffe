@@ -1,6 +1,6 @@
 #include <vector>
 
-#include "caffe/layers/deconv_layer.hpp"
+#include "caffe/vision_layers.hpp"
 
 namespace caffe {
 

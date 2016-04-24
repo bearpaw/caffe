@@ -1,6 +1,7 @@
 #include <vector>
 
-#include "caffe/layers/threshold_layer.hpp"
+#include "caffe/neuron_layers.hpp"
+
 
 namespace caffe {
 

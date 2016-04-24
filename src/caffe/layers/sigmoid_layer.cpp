@@ -1,7 +1,7 @@
 #include <cmath>
 #include <vector>
 
-#include "caffe/layers/sigmoid_layer.hpp"
+#include "caffe/neuron_layers.hpp"
 
 namespace caffe {
 

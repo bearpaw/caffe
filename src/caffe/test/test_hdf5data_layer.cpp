@@ -1,13 +1,11 @@
 #include <string>
 #include <vector>
 
-#include "hdf5.h"
-
 #include "gtest/gtest.h"
 
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
-#include "caffe/layers/hdf5_data_layer.hpp"
+#include "caffe/data_layers.hpp"
 #include "caffe/proto/caffe.pb.h"
 
 #include "caffe/test/test_caffe_main.hpp"

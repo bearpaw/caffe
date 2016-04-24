@@ -18,7 +18,6 @@ DB* GetDB(DataParameter::DB backend) {
 #endif  // USE_LMDB
   default:
     LOG(FATAL) << "Unknown database backend";
-    return NULL;
   }
 }
 

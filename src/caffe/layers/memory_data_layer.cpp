@@ -4,7 +4,7 @@
 
 #include <vector>
 
-#include "caffe/layers/memory_data_layer.hpp"
+#include "caffe/data_layers.hpp"
 
 namespace caffe {
 

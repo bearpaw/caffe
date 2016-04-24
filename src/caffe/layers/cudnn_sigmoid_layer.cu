@@ -1,7 +1,7 @@
 #ifdef USE_CUDNN
 #include <vector>
 
-#include "caffe/layers/cudnn_sigmoid_layer.hpp"
+#include "caffe/vision_layers.hpp"
 
 namespace caffe {
 

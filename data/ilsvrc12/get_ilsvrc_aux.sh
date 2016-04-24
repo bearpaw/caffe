@@ -12,7 +12,7 @@ cd $DIR
 
 echo "Downloading..."
 
-wget -c http://dl.caffe.berkeleyvision.org/caffe_ilsvrc12.tar.gz
+wget http://dl.caffe.berkeleyvision.org/caffe_ilsvrc12.tar.gz
 
 echo "Unzipping..."
 

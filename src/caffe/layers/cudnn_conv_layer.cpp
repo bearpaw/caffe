@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <vector>
 
-#include "caffe/layers/cudnn_conv_layer.hpp"
+#include "caffe/vision_layers.hpp"
 
 namespace caffe {
 

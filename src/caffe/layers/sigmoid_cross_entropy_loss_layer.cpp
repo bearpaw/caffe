@@ -1,6 +1,6 @@
 #include <vector>
 
-#include "caffe/layers/sigmoid_cross_entropy_loss_layer.hpp"
+#include "caffe/loss_layers.hpp"
 #include "caffe/util/math_functions.hpp"
 
 namespace caffe {

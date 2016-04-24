@@ -3,7 +3,7 @@
 
 #include <vector>
 
-#include "caffe/layers/tanh_layer.hpp"
+#include "caffe/neuron_layers.hpp"
 
 namespace caffe {
 

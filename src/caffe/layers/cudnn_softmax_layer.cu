@@ -3,7 +3,7 @@
 
 #include "thrust/device_vector.h"
 
-#include "caffe/layers/cudnn_softmax_layer.hpp"
+#include "caffe/vision_layers.hpp"
 
 namespace caffe {
 
