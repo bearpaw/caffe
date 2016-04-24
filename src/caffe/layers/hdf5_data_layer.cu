@@ -9,7 +9,7 @@ TODO:
 #include "hdf5.h"
 #include "hdf5_hl.h"
 
-#include "caffe/data_layers.hpp"
+#include "caffe/layers/hdf5_data_layer.hpp"
 
 namespace caffe {
 
@@ -45,7 +45,7 @@ void HDF5DataLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   }
   if(this->layer_param_.hdf5_data_param().debug()){
     LOG(INFO) << "dump!";
-    dumpEverything(top);
+//    dumpEverything(top);
   }
 }
 
