@@ -117,8 +117,6 @@ int main(int argc, char** argv) {
   int count = 0;
   const int kMaxKeyLength = 256;
   char key_cstr[kMaxKeyLength];
-  int data_size = 0;
-  bool data_size_initialized = false;
 
   for (int line_id = 0; line_id < lines.size(); ++line_id) {
     bool status;

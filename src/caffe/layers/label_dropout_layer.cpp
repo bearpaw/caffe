@@ -16,8 +16,6 @@ void LabelDropoutLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
 	//CHECK_EQ(bottom.size(), 1) << "IP Layer takes a single blob as input.";
 	CHECK_EQ(top.size(), 1) << "IP Layer takes a single blob as output.";
-
-
 }
 
 template <typename Dtype>
@@ -187,10 +185,10 @@ void LabelDropoutLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 		const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
 
 	const Dtype* top_diff = top[0]->cpu_diff();
-	const Dtype* bottom_data = bottom[0]->cpu_data();
-	const Dtype* label = bottom[1]->cpu_data();
+//	const Dtype* bottom_data = bottom[0]->cpu_data();
+//	const Dtype* label = bottom[1]->cpu_data();
+	//	int dim = top[0]->count() / top[0]->num();
 	Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
-	int dim = top[0]->count() / top[0]->num();
 	int count = top[0]->count();
 
 	Dtype* mask_data = mask_.mutable_cpu_data();
