@@ -8,6 +8,13 @@
 
 #include "caffe/common.hpp"
 #include "caffe/proto/caffe.pb.h"
+#include "caffe/util/format.hpp"
+
+#include <matio.h>
+
+#ifndef CAFFE_TMP_DIR_RETRIES
+#define CAFFE_TMP_DIR_RETRIES 100
+#endif
 
 namespace caffe {
 
@@ -108,6 +115,14 @@ inline bool ReadImageToDatum(const string& filename, const int label,
   return ReadImageToDatum(filename, label, 0, 0, true, encoding, datum);
 }
 
+bool ReadMatlabToDatum_opencv(const string& filename, const int label,
+    const int channels, const int height, const int width, const std::string & varname,
+    Datum* datum);
+
+bool ReadMatlabToDatum(const string& filename, const int label,
+    const int channels, const int height, const int width, const std::string & varname,
+    Datum* datum);
+
 bool DecodeDatumNative(Datum* datum);
 bool DecodeDatum(Datum* datum, bool is_color);
 
@@ -127,6 +142,7 @@ cv::Mat DecodeDatumToCVMatNative(const Datum& datum);
 cv::Mat DecodeDatumToCVMat(const Datum& datum, bool is_color);
 
 void CVMatToDatum(const cv::Mat& cv_img, Datum* datum);
+void CV64FMatToDatum(const cv::Mat& cv_img, Datum* datum);  // support double data
 #endif  // USE_OPENCV
 
 }  // namespace caffe
