@@ -1372,7 +1372,7 @@ void DataTransformer<Dtype>::clahe(Mat& bgr_image, int tileSize, int clipLimit) 
   split(lab_image, lab_planes);  // now we have the L image in lab_planes[0]
 
   // apply the CLAHE algorithm to the L channel
-  Ptr<CLAHE> clahe = createCLAHE(clipLimit, Size(tileSize, tileSize));
+  Ptr<CLAHE> clahe = createCLAHE(static_cast<double>(clipLimit), Size(tileSize, tileSize));
   //clahe->setClipLimit(4);
   Mat dst;
   clahe->apply(lab_planes[0], dst);
