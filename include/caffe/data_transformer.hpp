@@ -12,6 +12,14 @@ using namespace cv;
 
 namespace caffe {
 
+struct Clusters {
+  vector<Point2f> centers;
+  int number;
+  int size() {
+    return number;
+  }
+};
+
 /**
  * @brief Applies common transformations to the input data, such as
  * scaling, mirroring, substracting the image mean...
@@ -39,7 +47,8 @@ class DataTransformer {
    *    set_cpu_data() is used. See data_layer.cpp for an example.
    */
   void Transform(const Datum& datum, Blob<Dtype>* transformed_blob);
-  void Transform_nv(const Datum& datum, Blob<Dtype>* transformed_blob, Blob<Dtype>* transformed_label_blob, int cnt); //image and label
+  void Transform_nv(const Datum& datum, Blob<Dtype>* transformed_blob, Blob<Dtype>* transformed_label_blob,
+                    vector< Clusters >& clusters_, int cnt); //image and label
   /**
    * @brief Applies the transformation defined in the data layer's
    * transform_param block to a vector of Datum.
@@ -161,7 +170,14 @@ class DataTransformer {
     vector<Joints> joint_others; //length is numOtherPeople
   };
 
+
+  void Transform_patch(const Datum& datum, Mat& img_aug, vector<Point2f>& patch_centers, vector<int>& patch_labels,
+        vector< Clusters >& clusters_, int patch_size, Dtype fg_fraction, int cnt); // wyang for patch
+
   void generateLabelMap(Dtype*, Mat&, MetaData meta);
+  void generateLabelMap(Dtype*, Mat&, MetaData meta, vector< Clusters >& clusters_);
+  void generateLabel(vector<Point2f>& patch_centers, vector<int>& patch_labels,
+      int patch_size, Dtype fg_fraction, Mat& img_aug, MetaData meta, vector< Clusters >& clusters_);
   void visualize(Mat& img, MetaData meta, AugmentSelection as);
 
   bool augmentation_flip(Mat& img, Mat& img_aug, MetaData& meta);
@@ -176,6 +192,8 @@ class DataTransformer {
   int np_in_lmdb;
   int np;
   bool is_table_set;
+  bool use_mixture_;
+  int  num_mixtures_;
   vector<vector<float> > aug_degs;
   vector<vector<int> > aug_flips;
 
@@ -191,13 +209,14 @@ class DataTransformer {
   virtual int Rand(int n);
 
   void Transform(const Datum& datum, Dtype* transformed_data);
-  void Transform_nv(const Datum& datum, Dtype* transformed_data, Dtype* transformed_label, int cnt);
+  void Transform_nv(const Datum& datum, Dtype* transformed_data, Dtype* transformed_label, vector< Clusters >& clusters_, int cnt);
   void ReadMetaData(MetaData& meta, const string& data, size_t offset3, size_t offset1);
-  void TransformMetaJoints(MetaData& meta);
+  void TransformMetaJoints(MetaData& meta, vector< Clusters >& clusters);
   void TransformJoints(Joints& joints);
   void clahe(Mat& img, int, int);
   void putGaussianMaps(Dtype* entry, Point2f center, int stride, int grid_x, int grid_y, float sigma);
   void dumpEverything(Dtype* transformed_data, Dtype* transformed_label, MetaData);
+  int  assign_cluster_label(Point2f point, const Clusters& cluster);
 
   // Tranformation parameters
   TransformationParameter param_;

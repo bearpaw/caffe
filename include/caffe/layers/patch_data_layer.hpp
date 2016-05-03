@@ -1,5 +1,5 @@
-#ifndef CAFFE_CPM_DATA_LAYER_HPP_
-#define CAFFE_CPM_DATA_LAYER_HPP_
+#ifndef CAFFE_PATCH_DATA_LAYER_HPP_
+#define CAFFE_PATCH_DATA_LAYER_HPP_
 
 
 #include <vector>
@@ -17,11 +17,15 @@
 
 namespace caffe {
 
+/**
+ * @brief Prepare cropped patches for pose data
+ *    This data layer shares parameters with CPMDataLayer
+ */
 template <typename Dtype>
-class CPMDataLayer : public BasePrefetchingDataLayer<Dtype> {
+class PatchDataLayer : public BasePrefetchingDataLayer<Dtype> {
   public:
-    explicit CPMDataLayer(const LayerParameter& param);
-    virtual ~CPMDataLayer();
+    explicit PatchDataLayer(const LayerParameter& param);
+    virtual ~PatchDataLayer();
     virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
     virtual inline bool ShareInParallel() const { return false; }
@@ -32,17 +36,20 @@ class CPMDataLayer : public BasePrefetchingDataLayer<Dtype> {
 
   protected:
     virtual void load_batch(Batch<Dtype>* batch);
+    Mat crop_roi(const Mat& img_aug, Point2f patch_centers, int half_psize);
 
     DataReader reader_;
-    Blob<Dtype> transformed_label_; // add another blob
+//    Blob<Dtype> transformed_label_; // add another blob
     vector< Clusters > clusters_;  // mixture information
-    int np_in_lmdb_;
-    int np_;
-    int num_mixtures_;
-    int use_mixture_;
+    int   np_in_lmdb_;
+    int   np_;
+    int   num_mixtures_;
+    int   use_mixture_;
+    int   patch_size_;
+    Dtype fg_fraction_;
     //Blob<Dtype> transformed_label_all_; // all peaks, including others
 };
 
 }  // namespace caffe
 
-#endif  // CAFFE_CPM_DATA_LAYER_HPP_
+#endif  // CAFFE_PATCH_DATA_LAYER_HPP_

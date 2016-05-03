@@ -403,6 +403,7 @@ message LayerParameter {
   optional WindowDataParameter window_data_param = 129;
   optional CPMDataParameter cpmdata_param = 1105;
   optional ROIPoolingParameter roi_pooling_param = 1106;
+  optional LabelDropoutParameter label_dropout_param = 1109;
 }
 
 // Message that stores parameters used to apply transformation
@@ -454,7 +455,10 @@ message TransformationParameter {
   optional string aug_way = 33 [default = "rand"];
   optional uint32 gray = 34 [default = 0];
   optional uint32 np_in_lmdb = 35 [default = 16];
-  optional bool transform_body_joint = 38 [default = true];
+  optional bool transform_body_joint = 38 [default = true]; 
+  optional bool use_mixture = 1121 [default = false];   // by platero
+  optional uint32 num_mixtures = 1122 [default = 7];  // by platero
+  repeated uint32 pa = 1123;  // by platero [parent relation]
 }
 
 // Message that stores parameters used by ROIPoolingLayer
@@ -1252,6 +1256,20 @@ message CPMDataParameter {
   // Prefetch queue (Number of batches to prefetch to host memory, increase if
   // data access bandwidth varies).
   optional uint32 prefetch = 10 [default = 4];
+  // mixture information [by platero]
+  optional string mixture_source = 22;
+  // Fraction of batch that should be foreground objects
+  optional float fg_fraction = 101 [default = 0.25];
+  // crop patches from images
+  optional uint32 patch_size = 102 [default = 0];
+}
+
+// Message that stores parameters used by LabelDropoutLayer
+message LabelDropoutParameter {
+  optional float 	drop_neg_ratio = 1 [default = 1];
+  optional float 	hard_ratio = 2 [default = 0.5];
+  optional float 	rand_ratio = 3 [default = 0.5];
+  optional bool 	visualize = 14 [default = false];
 }
 
 

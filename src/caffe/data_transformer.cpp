@@ -158,7 +158,7 @@ void DataTransformer<Dtype>::SetAugTable(int numData){
 }
 
 template<typename Dtype>
-void DataTransformer<Dtype>::TransformMetaJoints(MetaData& meta) {
+void DataTransformer<Dtype>::TransformMetaJoints(MetaData& meta, vector< Clusters >& clusters) {
   //transform joints in meta from np_in_lmdb (specified in prototxt) to np (specified in prototxt)
   TransformJoints(meta.joint_self);
   for(int i=0;i<meta.joint_others.size();i++){
@@ -234,6 +234,9 @@ template<typename Dtype> DataTransformer<Dtype>::DataTransformer(const Transform
   np_in_lmdb = param_.np_in_lmdb();
   np = param_.num_parts();
   is_table_set = false;
+  use_mixture_ = param_.use_mixture();
+  num_mixtures_= param_.num_mixtures();
+//  LOG(INFO) << "!!!!!!!!!!!!!!!!!!!num_mixtures_: " << num_mixtures_;
 }
 
 template<typename Dtype> void DataTransformer<Dtype>::Transform(const Datum& datum, Dtype* transformed_data) {
@@ -353,7 +356,8 @@ template<typename Dtype> void DataTransformer<Dtype>::Transform(const Datum& dat
   Transform(datum, transformed_data);
 }
 
-template<typename Dtype> void DataTransformer<Dtype>::Transform_nv(const Datum& datum, Blob<Dtype>* transformed_data, Blob<Dtype>* transformed_label, int cnt) {
+template<typename Dtype> void DataTransformer<Dtype>::Transform_nv(const Datum& datum, Blob<Dtype>* transformed_data,
+    Blob<Dtype>* transformed_label, vector< Clusters >& clusters_, int cnt) {
   //std::cout << "Function 2 is used"; std::cout.flush();
   const int datum_channels = datum.channels();
   //const int datum_height = datum.height();
@@ -394,10 +398,11 @@ template<typename Dtype> void DataTransformer<Dtype>::Transform_nv(const Datum& 
   Dtype* transformed_data_pointer = transformed_data->mutable_cpu_data();
   Dtype* transformed_label_pointer = transformed_label->mutable_cpu_data();
 
-  Transform_nv(datum, transformed_data_pointer, transformed_label_pointer, cnt); //call function 1
+  Transform_nv(datum, transformed_data_pointer, transformed_label_pointer, clusters_, cnt); //call function 1
 }
 
-template<typename Dtype> void DataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transformed_data, Dtype* transformed_label, int cnt) {
+template<typename Dtype> void DataTransformer<Dtype>::Transform_nv(const Datum& datum, Dtype* transformed_data,
+    Dtype* transformed_label, vector< Clusters >& clusters_, int cnt) {
   
   //TODO: some parameter should be set in prototxt
   int clahe_tileSize = param_.clahe_tile_size();
@@ -460,7 +465,7 @@ template<typename Dtype> void DataTransformer<Dtype>::Transform_nv(const Datum& 
   int offset1 = datum_width;
   ReadMetaData(meta, data, offset3, offset1);
   if(param_.transform_body_joint()) // we expect to transform body joints, and not to transform hand joints
-    TransformMetaJoints(meta);
+    TransformMetaJoints(meta, clusters_);
 
   //visualize original
   if(0 && param_.visualize()) 
@@ -514,7 +519,125 @@ template<typename Dtype> void DataTransformer<Dtype>::Transform_nv(const Datum& 
   
   putGaussianMaps(transformed_data + 3*offset, meta.objpos, 1, img_aug.cols, img_aug.rows, param_.sigma_center());
   //LOG(INFO) << "image transformation done!";
-  generateLabelMap(transformed_label, img_aug, meta);
+  if (use_mixture_) {
+    generateLabelMap(transformed_label, img_aug, meta, clusters_);
+  } else {
+    generateLabelMap(transformed_label, img_aug, meta);
+  }
+
+  //starts to visualize everything (transformed_data in 4 ch, label) fed into conv1
+  //if(param_.visualize()){
+    //dumpEverything(transformed_data, transformed_label, meta);
+  //}
+}
+
+template<typename Dtype> void DataTransformer<Dtype>::Transform_patch(const Datum& datum, Mat& img_aug, vector<Point2f>& patch_centers, vector<int>& patch_labels,
+    vector< Clusters >& clusters_, int patch_size, Dtype fg_fraction, int cnt) {
+
+  //TODO: some parameter should be set in prototxt
+  int clahe_tileSize = param_.clahe_tile_size();
+  int clahe_clipLimit = param_.clahe_clip_limit();
+  //float targetDist = 41.0/35.0;
+  AugmentSelection as = {
+    false,
+    0.0,
+    Size(),
+    0,
+  };
+  MetaData meta;
+
+  const string& data = datum.data();
+  const int datum_channels = datum.channels();
+  const int datum_height = datum.height();
+  const int datum_width = datum.width();
+
+  //const int crop_size = param_.crop_size();
+  //const Dtype scale = param_.scale();
+  //const bool do_mirror = param_.mirror() && Rand(2);
+  //const bool has_mean_file = param_.has_mean_file();
+  const bool has_uint8 = data.size() > 0;
+  //const bool has_mean_values = mean_values_.size() > 0;
+  int crop_x = param_.crop_size_x();
+  int crop_y = param_.crop_size_y();
+
+  CHECK_GT(datum_channels, 0);
+  //CHECK_GE(datum_height, crop_size);
+  //CHECK_GE(datum_width, crop_size);
+
+  //before any transformation, get the image from datum
+  Mat img = Mat::zeros(datum_height, datum_width, CV_8UC3);
+  int offset = img.rows * img.cols;
+  int dindex;
+  Dtype d_element;
+  for (int i = 0; i < img.rows; ++i) {
+    for (int j = 0; j < img.cols; ++j) {
+      Vec3b& rgb = img.at<Vec3b>(i, j);
+      for(int c = 0; c < 3; c++){
+        dindex = c*offset + i*img.cols + j;
+        if (has_uint8)
+          d_element = static_cast<Dtype>(static_cast<uint8_t>(data[dindex]));
+        else
+          d_element = datum.float_data(dindex);
+        rgb[c] = d_element;
+      }
+    }
+  }
+
+  //color, contract
+  if(param_.do_clahe())
+    clahe(img, clahe_tileSize, clahe_clipLimit);
+  if(param_.gray() == 1){
+    cv::cvtColor(img, img, CV_BGR2GRAY);
+    cv::cvtColor(img, img, CV_GRAY2BGR);
+  }
+
+  int offset3 = 3 * offset;
+  int offset1 = datum_width;
+  ReadMetaData(meta, data, offset3, offset1);
+  if(param_.transform_body_joint()) // we expect to transform body joints, and not to transform hand joints
+    TransformMetaJoints(meta, clusters_);
+
+  //visualize original
+  if(0 && param_.visualize())
+    visualize(img, meta, as);
+
+  //Start transforming
+  Mat img_temp, img_temp2, img_temp3; //size determined by scale
+  // We only do random transform as augmentation when training.
+  if (phase_ == TRAIN) {
+    as.scale = augmentation_scale(img, img_temp, meta);
+    //LOG(INFO) << meta.joint_self.joints.size();
+    //LOG(INFO) << meta.joint_self.joints[0];
+    as.degree = augmentation_rotate(img_temp, img_temp2, meta);
+    //LOG(INFO) << meta.joint_self.joints.size();
+    //LOG(INFO) << meta.joint_self.joints[0];
+    if(0 && param_.visualize())
+      visualize(img_temp2, meta, as);
+    as.crop = augmentation_croppad(img_temp2, img_temp3, meta);
+    //LOG(INFO) << meta.joint_self.joints.size();
+    //LOG(INFO) << meta.joint_self.joints[0];
+    if(0 && param_.visualize())
+      visualize(img_temp3, meta, as);
+    as.flip = augmentation_flip(img_temp3, img_aug, meta);
+    //LOG(INFO) << meta.joint_self.joints.size();
+    //LOG(INFO) << meta.joint_self.joints[0];
+    if(param_.visualize())
+      visualize(img_aug, meta, as);
+  }
+  else {
+    img_aug = img.clone();
+    as.scale = 1;
+    as.crop = Size();
+    as.flip = 0;
+    as.degree = 0;
+  }
+
+  //LOG(INFO) << "image transformation done!";
+  if (use_mixture_) {
+    generateLabel(patch_centers, patch_labels, patch_size, fg_fraction, img_aug, meta, clusters_);
+  } else {
+    NOT_IMPLEMENTED;
+  }
 
   //starts to visualize everything (transformed_data in 4 ch, label) fed into conv1
   //if(param_.visualize()){
@@ -845,7 +968,7 @@ void DataTransformer<Dtype>::generateLabelMap(Dtype* transformed_label, Mat& img
       //center = center * (1.0/(float)param_.stride());
       //circle(label_map, center, 3, CV_RGB(255,0,255), -1);
       char imagename [100];
-      sprintf(imagename, "augment_%04d_label_part_%02d.jpg", meta.write_number, i);
+      sprintf(imagename, "cache/augment_%04d_label_part_%02d.jpg", meta.write_number, i);
       //LOG(INFO) << "filename is " << imagename;
       imwrite(imagename, label_map);
     }
@@ -871,6 +994,211 @@ void DataTransformer<Dtype>::generateLabelMap(Dtype* transformed_label, Mat& img
     // //LOG(INFO) << "filename is " << imagename;
     // imwrite(imagename, label_map);
   }
+}
+
+template<typename Dtype>
+int  DataTransformer<Dtype>::assign_cluster_label(Point2f point, const Clusters& cluster) {
+  int label = 0;
+  float min_diff = 1000000; // 1000*1000
+  for (int i = 0; i < cluster.number; ++i) {
+    float cur_diff = pow(point.x - cluster.centers[i].x, 2) + pow(point.y - cluster.centers[i].y, 2) ;
+    if (cur_diff < min_diff) {
+      min_diff = cur_diff;
+      label = i;
+    }
+  }
+  return label;
+}
+
+
+template<typename Dtype>
+void DataTransformer<Dtype>::generateLabelMap(Dtype* transformed_label, Mat& img_aug, MetaData meta, vector< Clusters >& clusters_) {
+  int rezX = img_aug.cols;
+  int rezY = img_aug.rows;
+  int stride = param_.stride();
+  int grid_x = rezX / stride;
+  int grid_y = rezY / stride;
+  int channelOffset = grid_y * grid_x;
+  int num_parts = np*num_mixtures_;
+  int pa[14] = {1, 0, 1, 2, 3, 1, 5, 6, 2, 8, 9, 5, 11, 12};
+
+  // clear out transformed_label, it may remain things for last batch
+  caffe_set(grid_y*grid_x*2*(num_parts+1), Dtype(0), transformed_label);
+//  for (int g_y = 0; g_y < grid_y; g_y++){
+//    for (int g_x = 0; g_x < grid_x; g_x++){
+//      for (int i = 0; i < 2*(num_parts+1); i++){
+//        transformed_label[i*channelOffset + g_y*grid_x + g_x] = 0;
+//      }
+//    }
+//  }
+  //LOG(INFO) << "label cleaned";
+
+  for (int i = 0; i < np; i++){
+    /**
+     * Assign mixture labels
+     */
+    Point2f center = meta.joint_self.joints[i];
+    Point2f pa_center = meta.joint_self.joints[pa[i]];
+    Point2f cur_diff = center - pa_center;
+    int mix_label = assign_cluster_label(cur_diff, clusters_[i]);
+    //LOG(INFO) << i << meta.numOtherPeople;
+//    LOG(INFO) << "Part " << i << " x: " << cur_diff.x << " , y: " << cur_diff.y;
+//    LOG(INFO) << "Part " << i << " x: " << center.x - pa_center.x << " , y: " << center.y - pa_center.y;
+//    LOG(INFO) << "-----------";
+
+    if(meta.joint_self.isVisible[i] <= 1){
+
+      putGaussianMaps(transformed_label + (i*num_mixtures_ + mix_label)*channelOffset, center, param_.stride(),
+                      grid_x, grid_y, param_.sigma()); //self
+      putGaussianMaps(transformed_label + ((np*num_mixtures_+1) + i*num_mixtures_ + mix_label)*channelOffset, center, param_.stride(),
+                      grid_x, grid_y, param_.sigma()); //self
+    }
+    //LOG(INFO) << "label put for" << i;
+    //plot others
+    for(int j = 0; j < meta.numOtherPeople; j++){ //for every other person
+      Point2f center = meta.joint_others[j].joints[i];
+      Point2f pa_center = meta.joint_others[j].joints[pa[i]];
+      if(meta.joint_others[j].isVisible[i] <= 1){
+        Point2f cur_diff = center - pa_center;
+        int mix_label = assign_cluster_label(cur_diff, clusters_[i]);
+
+        putGaussianMaps(transformed_label + ((np*num_mixtures_+1) + i*num_mixtures_ + mix_label)*channelOffset, center, param_.stride(),
+                        grid_x, grid_y, param_.sigma());
+      }
+    }
+  }
+
+  //put background channel
+  for (int g_y = 0; g_y < grid_y; g_y++){
+    for (int g_x = 0; g_x < grid_x; g_x++){
+      float maximum = 0;
+      for (int i = 0; i < np*num_mixtures_; i++){
+        maximum = (maximum > transformed_label[i*channelOffset + g_y*grid_x + g_x]) ? maximum : transformed_label[i*channelOffset + g_y*grid_x + g_x];
+      }
+      transformed_label[np*num_mixtures_*channelOffset + g_y*grid_x + g_x] = max(1.0-maximum, 0.0);
+      //second background channel
+      maximum = 0;
+      for (int i = np*num_mixtures_+1; i < 2*(np*num_mixtures_+1)-1; i++){
+        maximum = (maximum > transformed_label[i*channelOffset + g_y*grid_x + g_x]) ? maximum : transformed_label[i*channelOffset + g_y*grid_x + g_x];
+      }
+      transformed_label[(2*(np*num_mixtures_+1)-1)*channelOffset + g_y*grid_x + g_x] = max(1.0-maximum, 0.0);
+    }
+  }
+//  //LOG(INFO) << "background put";
+//  LOG(INFO) << np;
+//  LOG(INFO) << num_mixtures_;
+//
+//  LOG(INFO) << "MIXUTRE NUMBER: " << 2*(np*num_mixtures_+1);
+
+  //visualize
+  if(1 && param_.visualize()){
+    Mat label_map;
+    for(int i = 0; i < 2*(np*num_mixtures_+1); i++){
+      label_map = Mat::zeros(grid_y, grid_x, CV_8UC1);
+      //int MPI_index = MPI_to_ours[i];
+      //Point2f center = meta.joint_self.joints[MPI_index];
+      for (int g_y = 0; g_y < grid_y; g_y++){
+        //printf("\n");
+        for (int g_x = 0; g_x < grid_x; g_x++){
+          label_map.at<uchar>(g_y,g_x) = (int)(transformed_label[i*channelOffset + g_y*grid_x + g_x]*255);
+          //printf("%f ", transformed_label_entry[g_y*grid_x + g_x]*255);
+        }
+      }
+      resize(label_map, label_map, Size(), stride, stride, INTER_LINEAR);
+      applyColorMap(label_map, label_map, COLORMAP_JET);
+      addWeighted(label_map, 0.5, img_aug, 0.5, 0.0, label_map);
+
+      //center = center * (1.0/(float)param_.stride());
+      //circle(label_map, center, 3, CV_RGB(255,0,255), -1);
+      char imagename [100];
+      sprintf(imagename, "cache/augment_%04d_label_part_%02d.jpg", meta.write_number, i);
+      //LOG(INFO) << "filename is " << imagename;
+      imwrite(imagename, label_map);
+    }
+
+    // label_map = Mat::zeros(grid_y, grid_x, CV_8UC1);
+    // for (int g_y = 0; g_y < grid_y; g_y++){
+    //   //printf("\n");
+    //   for (int g_x = 0; g_x < grid_x; g_x++){
+    //     label_map.at<uchar>(g_y,g_x) = (int)(transformed_label[np*channelOffset + g_y*grid_x + g_x]*255);
+    //     //printf("%f ", transformed_label_entry[g_y*grid_x + g_x]*255);
+    //   }
+    // }
+    // resize(label_map, label_map, Size(), stride, stride, INTER_CUBIC);
+    // applyColorMap(label_map, label_map, COLORMAP_JET);
+    // addWeighted(label_map, 0.5, img_aug, 0.5, 0.0, label_map);
+
+    // for(int i=0;i<np;i++){
+    //   Point2f center = meta.joint_self.joints[i];// * (1.0/param_.stride());
+    //   circle(label_map, center, 3, CV_RGB(100,100,100), -1);
+    // }
+    // char imagename [100];
+    // sprintf(imagename, "augment_%04d_label_part_back.jpg", counter);
+    // //LOG(INFO) << "filename is " << imagename;
+    // imwrite(imagename, label_map);
+  }
+}
+
+
+template<typename Dtype>
+void DataTransformer<Dtype>::generateLabel(vector<Point2f>& patch_centers, vector<int>& patch_labels,
+    int patch_size, Dtype fg_fraction, Mat& img_aug, MetaData meta, vector< Clusters >& clusters_) {
+  int rezX = img_aug.cols;
+  int rezY = img_aug.rows;
+  int stride = param_.stride();
+  int grid_x = rezX / stride;
+  int grid_y = rezY / stride;
+  int channelOffset = grid_y * grid_x;
+  int num_parts = np*num_mixtures_;
+  int pa[14] = {1, 0, 1, 2, 3, 1, 5, 6, 2, 8, 9, 5, 11, 12};
+  int half_patch_size = ceil(patch_size/2);
+
+  // clear patch_centers and patch_labels
+  patch_centers.clear();
+  patch_labels.clear();
+
+  // get positive joint locations and labels
+  int poscnt = 0;
+  for (int i = 0; i < np; i++){
+    Point2f center = meta.joint_self.joints[i];
+    Point2f pa_center = meta.joint_self.joints[pa[i]];
+    Point2f cur_diff = center - pa_center;
+    int mix_label = assign_cluster_label(cur_diff, clusters_[i]);
+
+//    LOG(INFO) << "is visible : " << meta.joint_self.isVisible[i];
+    if(meta.joint_self.isVisible[i] <= 1){ // visible: 1; invisible: 2
+      patch_centers.push_back(center);
+      patch_labels.push_back(i*num_mixtures_ + mix_label);
+      ++ poscnt;
+    }
+  }
+
+  // Sample negative samples
+  if (meta.numOtherPeople == 0) {
+    int negcnt = 0, negtotal = np + round(np*(1-fg_fraction)/fg_fraction) - poscnt;
+    do {
+      float x = static_cast <float> (rand()) / static_cast <float> (RAND_MAX) * rezX; //[0,1]
+      float y = static_cast <float> (rand()) / static_cast <float> (RAND_MAX) * rezY; //[0,1]
+      Point2f neg_center(x, y);
+
+      if (x > half_patch_size+1 && y > half_patch_size+1 && x < rezX - half_patch_size - 1 && y < rezY - half_patch_size - 1) {
+        bool valid_neg = true;
+        for (int p = 0; p < np; ++p){
+          Point2f center = meta.joint_self.joints[p];
+          if (norm(neg_center-center) < half_patch_size) {
+            valid_neg = false;
+            break;
+          }
+        }
+        if (valid_neg) {
+          patch_centers.push_back(neg_center);
+          patch_labels.push_back(num_parts + 1); // background label
+          ++negcnt;
+        }
+      }
+    } while (negcnt < negtotal );
+  }
+
 }
 
 void setLabel(Mat& im, const std::string label, const Point& org) {
@@ -999,7 +1327,7 @@ void DataTransformer<Dtype>::visualize(Mat& img, MetaData meta, AugmentSelection
     rectangle(img_vis, Point(0, 0+img_vis.rows), Point(param_.crop_size_x(), param_.crop_size_y()+img_vis.rows), Scalar(255,255,255), 1);
 
     char imagename [100];
-    sprintf(imagename, "augment_%04d_epoch_%d_writenum_%d.jpg", counter, meta.epoch, meta.write_number);
+    sprintf(imagename, "cache/augment_%04d_epoch_%d_writenum_%d.jpg", counter, meta.epoch, meta.write_number);
     //LOG(INFO) << "filename is " << imagename;
     imwrite(imagename, img_vis);
   }
@@ -1008,7 +1336,7 @@ void DataTransformer<Dtype>::visualize(Mat& img, MetaData meta, AugmentSelection
     setLabel(img_vis, str_info, Point(0, 20));
 
     char imagename [100];
-    sprintf(imagename, "augment_%04d.jpg", counter);
+    sprintf(imagename, "cache/augment_%04d.jpg", counter);
     //LOG(INFO) << "filename is " << imagename;
     imwrite(imagename, img_vis);
   }
