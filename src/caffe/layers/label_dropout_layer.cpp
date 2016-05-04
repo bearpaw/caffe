@@ -10,34 +10,34 @@ using namespace cv;
 using namespace std;
 
 namespace caffe {
-int myrandom (int i) { return caffe_rng_rand()%i;}
 
-template <typename Dtype>
+int my_cpu_random(int i) { return caffe_rng_rand() % i; }
+
+template<typename Dtype>
 void LabelDropoutLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
-  //CHECK_EQ(bottom.size(), 1) << "IP Layer takes a single blob as input.";
-  CHECK_EQ(top.size(), 1) << "IP Layer takes a single blob as output.";
-
-
+  CHECK_EQ(bottom.size(), 2) << "LabelDropout Layer takes two blob as input.";
+  CHECK_EQ(top.size(), 1) << "LabelDropout Layer takes a single blob as output.";
+  LabelDropoutParameter label_drop_param = this->layer_param_.label_dropout_param();
+  drop_on_zero = label_drop_param.drop_on_zero();
+  drop_on_zero_ratio = label_drop_param.drop_on_zero_ratio();
+  hard_ratio = label_drop_param.hard_ratio();
+  rand_ratio = label_drop_param.rand_ratio();
+  drop_neg_ratio = label_drop_param.drop_neg_ratio();
 }
 
-template <typename Dtype>
+template<typename Dtype>
 void LabelDropoutLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
-
-  int num = bottom[0]->num();
-  int out_channel = bottom[0]->channels();
-  int out_height = bottom[0]->height();
-  int out_width = bottom[0]->width();
-
-  top[0]->Reshape(num, out_channel, out_height, out_width);
-  mask_.Reshape(bottom[0]->num(), out_channel, out_height, out_width);
+  for (int i = 1; i < bottom.size(); ++i) {
+    CHECK(bottom[i]->shape() == bottom[0]->shape());
+  }
+  top[0]->ReshapeLike(*bottom[0]);
+  mask_.ReshapeLike(*bottom[0]);
 }
 
-
-template <typename Dtype>
-void LabelDropoutLayer<Dtype>::set_mask(const vector<Blob<Dtype>*>& bottom)
-{
+template<typename Dtype>
+void LabelDropoutLayer<Dtype>::set_mask(const vector<Blob<Dtype>*>& bottom) {
   const Dtype* bottom_data = bottom[0]->cpu_data();
   const Dtype* label = bottom[1]->cpu_data();
 
@@ -49,92 +49,65 @@ void LabelDropoutLayer<Dtype>::set_mask(const vector<Blob<Dtype>*>& bottom)
   int out_width = bottom[0]->width();
   int mapsize = out_height * out_width;
 
-  LabelDropoutParameter label_drop_param = this->layer_param_.label_dropout_param();
-  float drop_neg_ratio = label_drop_param.drop_neg_ratio();
-  float hard_ratio = label_drop_param.hard_ratio();
-  float rand_ratio = label_drop_param.rand_ratio();
   Dtype* mask_data = mask_.mutable_cpu_data();
 
   vector<pair<float, int> > negpairs;
   vector<int> sid1;
   vector<int> sid2;
 
-  /*vector<int> idxs;
-  for(int i = 0; i < 100; i ++) idxs.push_back(i);
-  std::random_shuffle(idxs.begin(), idxs.end(), myrandom);*/
-
-//  for(int i = 0; i < count; i ++) mask_data[i] = 0;
   caffe_set(count, Dtype(0), mask_data);
 
-  for(int i = 0; i < num; i ++)
-  {
-
-    for(int j = 0; j < out_channel; j ++)
-    {
+  for (int i = 0; i < num; i++) {
+    for (int j = 0; j < out_channel; j++) {
       negpairs.clear();
       sid1.clear();
       sid2.clear();
       int pos_num = 0;
       int neg_num = 0;
-      for(int k = 0; k < mapsize; k ++)
-      {
+      for (int k = 0; k < mapsize; k++) {
         int nowid = i * dim + j * mapsize + k;
-//        if(label[nowid] == 1)
-        if(label[nowid] > 0)
-        {
+        if (label[nowid] > 0) {
           mask_data[nowid] = 1;
-          pos_num ++;
+          pos_num++;
         }
-        if(label[nowid] == 0)
-        {
+        if (label[nowid] == 0) {
           float ts = fabs(bottom_data[nowid]);
           negpairs.push_back(make_pair(ts, nowid));
-          neg_num ++;
+          neg_num++;
         }
       }
       int use_neg_num = pos_num * drop_neg_ratio;
       // for all zero maps
-      if (pos_num == 0 && label_drop_param.drop_on_zero()) {
-        use_neg_num = neg_num * label_drop_param.drop_on_zero_ratio();
+      if (pos_num == 0 && drop_on_zero) {
+        use_neg_num = neg_num * drop_on_zero_ratio;
       }
 
-      if(use_neg_num >= neg_num)
-      {
-        for(int k = 0; k < negpairs.size(); k ++)
-        {
+      if (use_neg_num >= neg_num) {
+        for (int k = 0; k < negpairs.size(); k++) {
           mask_data[negpairs[k].second] = 1;
         }
         continue;
       }
 
       sort(negpairs.begin(), negpairs.end());
-      for(int k = 0; k < use_neg_num; k ++)
-      {
+      for (int k = 0; k < use_neg_num; k++) {
         sid1.push_back(negpairs[neg_num - k - 1].second);
       }
-      for(int k = 0; k < neg_num - use_neg_num; k ++)
-      {
+      for (int k = 0; k < neg_num - use_neg_num; k++) {
         sid2.push_back(negpairs[k].second);
       }
-      std::random_shuffle(sid1.begin(), sid1.end(), myrandom);
+      std::random_shuffle(sid1.begin(), sid1.end(), my_cpu_random);
       int hardNum = use_neg_num * hard_ratio;
       int randNum = use_neg_num * rand_ratio;
-      // for all zero maps
-      if (pos_num == 0 && label_drop_param.drop_on_zero()) {
-        hardNum = neg_num * hard_ratio_zero;
-        randNum = neg_num * rand_ratio_zero;
-      }
-      for(int k = 0; k < hardNum; k ++)
-      {
+
+      for (int k = 0; k < hardNum; k++) {
         mask_data[sid1[k]] = 1;
       }
-      for(int k = 0; k < randNum; k ++)
-      {
+      for (int k = 0; k < randNum; k++) {
         sid2.push_back(sid1[hardNum + k]);
       }
-      std::random_shuffle(sid2.begin(), sid2.end(), myrandom);
-      for(int k = 0; k < randNum; k ++)
-      {
+      std::random_shuffle(sid2.begin(), sid2.end(), my_cpu_random);
+      for (int k = 0; k < randNum; k++) {
         mask_data[sid2[k]] = 1;
       }
 
@@ -144,86 +117,56 @@ void LabelDropoutLayer<Dtype>::set_mask(const vector<Blob<Dtype>*>& bottom)
 
 }
 
-
-template <typename Dtype>
+template<typename Dtype>
 void LabelDropoutLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   CPUTimer batch_timer;
   batch_timer.Start();
+  // set mask
+  set_mask(bottom);
+  // copy data
   Dtype* top_data = top[0]->mutable_cpu_data();
   const Dtype * bottom_data = bottom[0]->cpu_data();
-  const Dtype * label = bottom[1]->cpu_data();
 
-  int dim = bottom[0]->count() / bottom[0]->num();
-  int num = bottom[0]->num();
-  int out_channel = bottom[0]->channels();
-  int out_height = bottom[0]->height();
-  int out_width = bottom[0]->width();
-
-  set_mask(bottom);
-
-
-  Dtype* mask_data = mask_.mutable_cpu_data();
-  for(int i = 0; i < top[0]->count(); i ++)
-  {
-    top_data[i] = label[i];
-    if (mask_data[i] > 0)
-    {
-      top_data[i] = bottom_data[i];
-    }
-  }
+  caffe_copy(top[0]->count(), bottom_data, top_data);
 
   // debug
-  if(1 && this->layer_param_.label_dropout_param().visualize())
-  {
+  if (1 && this->layer_param_.label_dropout_param().visualize()) {
+    int dim = bottom[0]->count() / bottom[0]->num();
+    int num = bottom[0]->num();
+    int out_channel = bottom[0]->channels();
+    int out_height = bottom[0]->height();
+    int out_width = bottom[0]->width();
+    Dtype* mask_data = mask_.mutable_cpu_data();
     char ss1[1010];
     Mat imgout(Size(out_width, out_height), CV_8UC3);
-    for(int i = 0; i < num; i ++)
-    {
-      for(int c = 0; c < out_channel; c ++)
-      {
-        for(int h = 0; h < out_height; h ++ )
-          for(int w = 0; w < out_width; w ++)
-          {
-            for(int ch = 0; ch < 3; ch ++)
-              imgout.at<cv::Vec3b>(h, w)[ch] =(uchar)( mask_data[i * dim + c * out_height * out_width + h * out_width + w] * 255 );
-//              imgout.at<cv::Vec3b>(h, w)[ch] =(uchar)( bottom_data[i * dim + c * out_height * out_width + h * out_width + w] * 255 );
+    for (int i = 0; i < num; i++) {
+      for (int c = 0; c < out_channel; c++) {
+        for (int h = 0; h < out_height; h++)
+          for (int w = 0; w < out_width; w++) {
+            for (int ch = 0; ch < 3; ch++)
+              imgout.at<cv::Vec3b>(h, w)[ch] = (uchar) (mask_data[i * dim
+                                                                  + c * out_height * out_width + h * out_width + w] * 255);
+            //              imgout.at<cv::Vec3b>(h, w)[ch] =(uchar)( bottom_data[i * dim + c * out_height * out_width + h * out_width + w] * 255 );
           }
 
-        sprintf(ss1,"/home/wyang/tmp/labeldropout/%d_%d_pred.jpg",i,c);
+        sprintf(ss1, "/home/wyang/tmp/labeldropout/%d_%d_pred.jpg", i, c);
         imwrite(ss1, imgout);
       }
     }
-
-  }
+  } // end of debug
 
   batch_timer.Stop();
-//  LOG(INFO) << "Forward: " << batch_timer.MilliSeconds() << " ms.";
+  //  LOG(INFO) << "Forward: " << batch_timer.MilliSeconds() << " ms.";
 }
 
-template <typename Dtype>
+template<typename Dtype>
 void LabelDropoutLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
-
-  const Dtype* top_diff = top[0]->cpu_diff();
-//  const Dtype* bottom_data = bottom[0]->cpu_data();
-//  const Dtype* label = bottom[1]->cpu_data();
   Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
-//  int dim = top[0]->count() / top[0]->num();
-  int count = top[0]->count();
-
-  Dtype* mask_data = mask_.mutable_cpu_data();
-
-  for(int i = 0; i < count; i ++)
-  {
-    bottom_diff[i] = 0;
-    if (mask_data[i] > 0)
-    {
-      bottom_diff[i] = top_diff[i];
-    }
-  }
-
+  caffe_mul(bottom[0]->count(), top[0]->cpu_diff(), mask_.cpu_data(), bottom_diff);
 }
+
 #ifdef CPU_ONLY
 STUB_GPU(LabelDropoutLayer);
 #endif

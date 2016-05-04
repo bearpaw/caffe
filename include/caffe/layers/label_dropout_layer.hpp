@@ -9,6 +9,7 @@
 
 namespace caffe {
 
+
 /**
  * @brief Compute masked predictions.
  * Mask = 1 means the predictions should be keeped (compute loss and diff here).
@@ -33,21 +34,22 @@ class LabelDropoutLayer : public Layer<Dtype> {
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
-//  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
-//      const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-//  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
-//      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
   void set_mask(const vector<Blob<Dtype>*>& bottom);
+  void set_gpu_mask(const vector<Blob<Dtype>*>& bottom);
 
   Blob<Dtype> mask_;
+  bool  drop_on_zero;
+  Dtype drop_on_zero_ratio;
   Dtype drop_neg_ratio;
   Dtype hard_ratio;
   Dtype rand_ratio;
-  Dtype hard_ratio_zero;
-  Dtype rand_ratio_zero;
 };
 
 }  // namespace caffe
