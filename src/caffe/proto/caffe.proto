@@ -1270,6 +1270,8 @@ message LabelDropoutParameter {
   optional float 	hard_ratio = 2 [default = 0.5];
   optional float 	rand_ratio = 3 [default = 0.5];
   optional bool 	visualize = 14 [default = false];
+  optional bool 	drop_on_zero = 5 [default = false];
+  optional float 	drop_on_zero_ratio = 6 [default = 0];
 }
 
 

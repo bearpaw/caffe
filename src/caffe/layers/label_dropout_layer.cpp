@@ -3,6 +3,7 @@
 
 #include "caffe/layers/label_dropout_layer.hpp"
 #include "caffe/util/math_functions.hpp"
+#include "caffe/util/benchmark.hpp"
 
 #include <opencv2/opencv.hpp>
 using namespace cv;
@@ -62,7 +63,8 @@ void LabelDropoutLayer<Dtype>::set_mask(const vector<Blob<Dtype>*>& bottom)
   for(int i = 0; i < 100; i ++) idxs.push_back(i);
   std::random_shuffle(idxs.begin(), idxs.end(), myrandom);*/
 
-  for(int i = 0; i < count; i ++) mask_data[i] = 0;
+//  for(int i = 0; i < count; i ++) mask_data[i] = 0;
+  caffe_set(count, Dtype(0), mask_data);
 
   for(int i = 0; i < num; i ++)
   {
@@ -91,6 +93,11 @@ void LabelDropoutLayer<Dtype>::set_mask(const vector<Blob<Dtype>*>& bottom)
         }
       }
       int use_neg_num = pos_num * drop_neg_ratio;
+      // for all zero maps
+      if (pos_num == 0 && label_drop_param.drop_on_zero()) {
+        use_neg_num = neg_num * label_drop_param.drop_on_zero_ratio();
+      }
+
       if(use_neg_num >= neg_num)
       {
         for(int k = 0; k < negpairs.size(); k ++)
@@ -112,6 +119,11 @@ void LabelDropoutLayer<Dtype>::set_mask(const vector<Blob<Dtype>*>& bottom)
       std::random_shuffle(sid1.begin(), sid1.end(), myrandom);
       int hardNum = use_neg_num * hard_ratio;
       int randNum = use_neg_num * rand_ratio;
+      // for all zero maps
+      if (pos_num == 0 && label_drop_param.drop_on_zero()) {
+        hardNum = neg_num * hard_ratio_zero;
+        randNum = neg_num * rand_ratio_zero;
+      }
       for(int k = 0; k < hardNum; k ++)
       {
         mask_data[sid1[k]] = 1;
@@ -136,6 +148,8 @@ void LabelDropoutLayer<Dtype>::set_mask(const vector<Blob<Dtype>*>& bottom)
 template <typename Dtype>
 void LabelDropoutLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
+  CPUTimer batch_timer;
+  batch_timer.Start();
   Dtype* top_data = top[0]->mutable_cpu_data();
   const Dtype * bottom_data = bottom[0]->cpu_data();
   const Dtype * label = bottom[1]->cpu_data();
@@ -147,6 +161,8 @@ void LabelDropoutLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   int out_width = bottom[0]->width();
 
   set_mask(bottom);
+
+
   Dtype* mask_data = mask_.mutable_cpu_data();
   for(int i = 0; i < top[0]->count(); i ++)
   {
@@ -180,6 +196,9 @@ void LabelDropoutLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     }
 
   }
+
+  batch_timer.Stop();
+//  LOG(INFO) << "Forward: " << batch_timer.MilliSeconds() << " ms.";
 }
 
 template <typename Dtype>

@@ -46,6 +46,8 @@ class LabelDropoutLayer : public Layer<Dtype> {
   Dtype drop_neg_ratio;
   Dtype hard_ratio;
   Dtype rand_ratio;
+  Dtype hard_ratio_zero;
+  Dtype rand_ratio_zero;
 };
 
 }  // namespace caffe
