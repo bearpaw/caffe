@@ -47,7 +47,7 @@ void LabelDropoutLayer<Dtype>::set_gpu_mask(const vector<Blob<Dtype>*>& bottom) 
   int out_channel = bottom[0]->channels();
   int out_height = bottom[0]->height();
   int out_width = bottom[0]->width();
-  int mapsize = out_height * out_width;
+//  int mapsize = out_height * out_width;
 
   Dtype* mask_data = mask_.mutable_gpu_data();
 
