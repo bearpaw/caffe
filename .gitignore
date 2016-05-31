@@ -1,5 +1,6 @@
 ## General
 matlab/cache
+tools/extra/plot_training_log.py
 
 # Compiled Object files
 *.slo
