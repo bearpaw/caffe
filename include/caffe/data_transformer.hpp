@@ -193,6 +193,7 @@ class DataTransformer {
   int np;
   bool is_table_set;
   bool use_mixture_;
+  bool aug_midway_;
   int  num_mixtures_;
   vector<vector<float> > aug_degs;
   vector<vector<int> > aug_flips;
@@ -225,6 +226,7 @@ class DataTransformer {
   Phase phase_;
   Blob<Dtype> data_mean_;
   vector<Dtype> mean_values_;
+  vector<pair<Point2f, Point2f> > trans;
 };
 
 }  // namespace caffe

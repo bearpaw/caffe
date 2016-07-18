@@ -35,12 +35,12 @@ void CPMDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   use_mixture_ = this->layer_param_.transform_param().use_mixture();
 
 
-  LOG(INFO) << "np_in_lmdb_: " << np_in_lmdb_;
-  LOG(INFO) << "np_: " << np_;
+//  LOG(INFO) << "np_in_lmdb_: " << np_in_lmdb_;
+//  LOG(INFO) << "np_: " << np_;
   
   // Read a data point, and use it to initialize the top blob.
   Datum& datum = *(reader_.full().peek());
-  LOG(INFO) << datum.height() << " " << datum.width() << " " << datum.channels();
+//  LOG(INFO) << datum.height() << " " << datum.width() << " " << datum.channels();
 
   bool force_color = this->layer_param_.cpmdata_param().force_encoded_color();
   if ((force_color && DecodeDatum(&datum, true)) ||
@@ -70,9 +70,9 @@ void CPMDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     }
     this->transformed_data_.Reshape(1, 4, height, width);
   }
-  LOG(INFO) << "output data size: " << top[0]->num() << ","
-      << top[0]->channels() << "," << top[0]->height() << ","
-      << top[0]->width();
+//  LOG(INFO) << "output data size: " << top[0]->num() << ","
+//      << top[0]->channels() << "," << top[0]->height() << ","
+//      << top[0]->width();
 
   // label
   if (this->output_labels_) {
@@ -83,6 +83,9 @@ void CPMDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       this->layer_param_.transform_param().crop_size_x();
 
     int num_parts = np_;
+    if (this->layer_param_.transform_param().aug_midway()) {
+      num_parts = 26;
+    }
     if (use_mixture_) {
       num_parts = np_*num_mixtures_;
       LOG(INFO) << "NUM of PARTS!!! : " << num_parts;

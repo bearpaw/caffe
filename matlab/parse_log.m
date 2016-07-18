@@ -51,16 +51,22 @@ fclose(info);
 
 % ------ draw graphs ------
 colors = colormap(jet(length(losses)));
-ymax = 10000; 
+ymax = 0;
+ymin = 10000;
 for ii = 1:length(losses)
-  if ymax > max(losses{ii}(skip_first_loss:end)); % skip first 10 losses
-    ymax = max(losses{ii}(skip_first_loss:end));
-  end
   loss = smooth_loss(losses{ii}, smooth_step);
+  if ymax < max(loss); % skip first 10 losses
+    ymax = max(loss);
+  end
+  
+  if ymin > min(loss); % skip first 10 losses
+    ymin = min(loss);
+  end
+  
   plot(num_iters, loss, 'Color', colors(ii, :), 'LineWidth', 2); hold on;
 end
-ymin = min(cell2mat(losses));
-axis([0 num_iters(end) 0 100]);
+margin = (ymax - ymin)*0.1;
+axis([num_iters(1) num_iters(end) ymin-margin ymax+margin]);
 legend(header(4:end));
 xlabel('# Iters');
 ylabel('Loss');
